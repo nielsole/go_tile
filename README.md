@@ -8,8 +8,15 @@ Each tile in OSM is 64x64 pixels with many tiles only having ~100 bytes. To redu
 
 ## Usage
 
-
-
+```
+Usage of /tmp/go-build004735986/b001/exe/osm-tileserver:
+  -data string
+        Path to directory containing tiles (default "./data")
+  -port string
+        Listening port (default ":8080")
+  -static string
+        Path to static file directory (default "./static/")
+```
 
 ## Generate tiles using mod_tile (Prerequisite)
 
