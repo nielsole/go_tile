@@ -18,6 +18,12 @@ Usage of /tmp/go-build004735986/b001/exe/osm-tileserver:
         Path to static file directory (default "./static/")
 ```
 
+With Docker:
+
+```
+docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8082:8080 nielsole/go_tile
+```
+
 ## Generate tiles using mod_tile (Prerequisite)
 
 1. Follow the guides at https://github.com/Overv/openstreetmap-tile-server to get a working mod_tile setup with the data you want.
