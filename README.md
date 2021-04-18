@@ -8,6 +8,16 @@ Each tile in OSM is 64x64 pixels with many tiles only having ~100 bytes. mod_til
 
 ## Usage
 
+With Docker:
+
+```
+docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8080:8080 nielsole/go_tile
+```
+
+Now you can view your map at <http://localhost:8080/>. The docker container bundles a leaflet installation.
+
+If you prefer to run the binary directly you have the following options:
+
 ```
 Usage of /tmp/go-build004735986/b001/exe/osm-tileserver:
   -data string
@@ -17,14 +27,6 @@ Usage of /tmp/go-build004735986/b001/exe/osm-tileserver:
   -static string
         Path to static file directory (default "./static/")
 ```
-
-With Docker:
-
-```
-docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8080:8080 nielsole/go_tile
-```
-
-Now you can view your map at <http://localhost:8080/>
 
 ## Generate tiles using mod_tile (Prerequisite)
 
