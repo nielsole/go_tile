@@ -59,10 +59,16 @@ func readInt(file *os.File) uint32 {
 	return binary.LittleEndian.Uint32(b)
 }
 
-func readPNGTile(writer io.Writer, metatile_path string, metatile_offset uint32) error {
+func readPNGTile(writer http.ResponseWriter, metatile_path string, metatile_offset uint32) error {
 	file, err := os.Open(metatile_path)
 	if err != nil {
-		fmt.Println("Error opening file!!!", metatile_path)
+		if errors.Is(err, os.ErrNotExist) {
+			writer.WriteHeader(http.StatusNotFound)
+		} else {
+			fmt.Println("Error opening file!!!", metatile_path)
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+		return nil
 	}
 	defer file.Close()
 
