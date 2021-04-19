@@ -3,7 +3,7 @@
 go_tile serves prerendered OpenStreetMap tiles from the local filesystem prerendered by mod_tile.
 go_tile is a static binary based on 100 lines of Go which makes it **easier to setup / reason about** than Apache+mod_tile+renderd+mapnik. You don't have to worry about tile expirations, render configurations, database connections... at runtime(but of course during prerendering of the tiles).
 
-The cache files created by mod_tile are `METATILE`s and these can't be served directly through a webserver or e.g. S3.
+The cache files created by mod_tile are `METATILE`s which can't be served directly through a webserver or e.g. S3.
 Each tile in OSM is 64x64 pixels with many tiles only having ~100 bytes. mod_tile uses `METATILE`s to reduce the number of small files by grouping 8x8 tiles into one file.
 
 ## Usage
@@ -14,7 +14,7 @@ With Docker:
 docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8080:8080 nielsole/go_tile
 ```
 
-Now you can view your map at <http://localhost:8080/>. The docker container bundles a leaflet installation.
+Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/>
 
 If you prefer to run the binary directly you have the following options:
 

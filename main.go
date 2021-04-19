@@ -5,7 +5,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -59,7 +58,16 @@ func readInt(file *os.File) uint32 {
 	return binary.LittleEndian.Uint32(b)
 }
 
-func readPNGTile(writer http.ResponseWriter, metatile_path string, metatile_offset uint32) error {
+func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32) error {
+	fileInfo, statErr := os.Stat(metatile_path)
+	if statErr != nil {
+		if errors.Is(statErr, os.ErrNotExist) {
+			writer.WriteHeader(http.StatusNotFound)
+			return nil
+		}
+		return statErr
+	}
+	modTime := fileInfo.ModTime()
 	file, err := os.Open(metatile_path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -83,14 +91,9 @@ func readPNGTile(writer http.ResponseWriter, metatile_path string, metatile_offs
 	file.Seek(int64(20+metatile_offset*2*4), 0)
 	tile_offset := readInt(file)
 	tile_length := readInt(file)
+	file.Stat()
 	file.Seek(int64(tile_offset), 0)
-	for bytes_written := int64(0); bytes_written < int64(tile_length); {
-		copied_bytes, copyNErr := io.CopyN(writer, file, int64(tile_length)-int64(bytes_written))
-		if copyNErr != nil {
-			return errors.New("Error during copying bytes")
-		}
-		bytes_written = bytes_written + copied_bytes
-	}
+	http.ServeContent(writer, req, "file.png", modTime, NewSubFileReaderSeeker(file, int(tile_offset), int(tile_length)))
 	return nil
 }
 
@@ -102,9 +105,9 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string
 	y, _ := strconv.Atoi(vars["y"])
 	z, _ := strconv.Atoi(vars["z"])
 	metatile_path, metatile_offset := findPath(*data_dir, uint32(x), uint32(y), z)
-	errPng := readPNGTile(resp, metatile_path, metatile_offset)
+	errPng := readPNGTile(resp, req, metatile_path, metatile_offset)
 	if errPng != nil {
-		resp.WriteHeader(http.StatusBadRequest)
+		resp.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
