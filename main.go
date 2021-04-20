@@ -79,6 +79,7 @@ func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path st
 		return nil
 	}
 	defer file.Close()
+	writer.Header().Add("Cache-Control", "no-cache")
 
 	// declare chunk size
 	const maxSz = 4
