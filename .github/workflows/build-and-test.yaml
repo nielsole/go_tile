@@ -23,6 +23,7 @@ jobs:
 
   test:
     container: golang:1.17-alpine
+    runs-on: ubuntu-latest
     steps:
     -
       name: Checkout
