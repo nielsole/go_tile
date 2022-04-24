@@ -4,7 +4,7 @@ def read_int(metafile):
     return int.from_bytes(metafile.read(4), "little")
 
 def main():
-    with open("/home/nokadmin/Downloads/ajt/15/0/66/73/207/8.meta", 'rb') as metafile:
+    with open("../ajt/15/0/66/73/207/8.meta", 'rb') as metafile:
         magic = metafile.read(4)
         print(magic)
         count = read_int(metafile)

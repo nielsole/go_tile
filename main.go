@@ -52,10 +52,15 @@ func findPath(baseDir string, x uint32, y uint32, z int) (metaPath string, offse
 	return
 }
 
-func readInt(file *os.File) uint32 {
+func readInt(file *os.File) (uint32, error) {
 	b := make([]byte, 4)
-	file.Read(b)
-	return binary.LittleEndian.Uint32(b)
+	bytesRead, err := file.Read(b)
+	if err != nil {
+		return 0, err
+	} else if bytesRead != 4 {
+		return 0, errors.New("Incorrect amount of bytes read")
+	}
+	return binary.LittleEndian.Uint32(b), nil
 }
 
 func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32) error {
@@ -85,13 +90,22 @@ func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path st
 	const maxSz = 4
 
 	file.Seek(4, 0)
-	tile_count := readInt(file)
+	tile_count, err := readInt(file)
+	if err != nil {
+		return err
+	}
 	if metatile_offset >= tile_count {
 		return errors.New("Requested offset exceeded bounds of metatile")
 	}
 	file.Seek(int64(20+metatile_offset*2*4), 0)
-	tile_offset := readInt(file)
-	tile_length := readInt(file)
+	tile_offset, err := readInt(file)
+	if err != nil {
+		return err
+	}
+	tile_length, err := readInt(file)
+	if err != nil {
+		return err
+	}
 	file.Stat()
 	file.Seek(int64(tile_offset), 0)
 	http.ServeContent(writer, req, "file.png", modTime, NewSubFileReaderSeeker(file, int(tile_offset), int(tile_length)))
@@ -125,6 +139,7 @@ func main() {
 		http.FileServer(http.Dir(*static_dir)).ServeHTTP(w, r)
 	})
 	http.Handle("/", r)
+	fmt.Printf("Listening on port %s\n", *listen_port)
 	err := http.ListenAndServe(*listen_port, nil)
 	if err != nil {
 		log.Fatal(err)
