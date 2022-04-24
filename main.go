@@ -111,6 +111,9 @@ func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path st
 func parsePath(path string) (z, x, y uint32, err error) {
 	matcher := regexp.MustCompile(`/tile/([0-9]+)/([0-9]+)/([0-9]+).png`)
 	matches := matcher.FindStringSubmatch(path)
+	if len(matches) != 4 {
+		return 0, 0, 0, errors.New("could not match path")
+	}
 	zInt, err := strconv.Atoi(matches[1])
 	if err != nil {
 		return
@@ -133,6 +136,7 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string
 	z, x, y, err := parsePath(req.URL.Path)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
+		resp.Write([]byte(err.Error()))
 		return
 	}
 	resp.Header().Add("Content-Type", "image/png")
@@ -148,7 +152,7 @@ func main() {
 	data_dir := flag.String("data", "./data", "Path to directory containing tiles")
 	static_dir := flag.String("static", "./static/", "Path to static file directory")
 	flag.Parse()
-	http.HandleFunc("/tile", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
 			return
 		}
