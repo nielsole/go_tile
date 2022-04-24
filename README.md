@@ -11,7 +11,7 @@ Each tile in OSM is 64x64 pixels with many tiles only having ~100 bytes. mod_til
 With Docker:
 
 ```
-docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8080:8080 nielsole/go_tile
+docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8080:8080 ghcr.io/nielsole/go_tile:latest
 ```
 
 Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/>
