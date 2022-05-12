@@ -6,10 +6,12 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
 	"strconv"
+	"time"
 )
 
 /*
@@ -62,16 +64,7 @@ func readInt(file *os.File) (uint32, error) {
 	return binary.LittleEndian.Uint32(b), nil
 }
 
-func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32) error {
-	fileInfo, statErr := os.Stat(metatile_path)
-	if statErr != nil {
-		if errors.Is(statErr, os.ErrNotExist) {
-			writer.WriteHeader(http.StatusNotFound)
-			return nil
-		}
-		return statErr
-	}
-	modTime := fileInfo.ModTime()
+func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time) error {
 	file, err := os.Open(metatile_path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -132,6 +125,32 @@ func parsePath(path string) (z, x, y uint32, err error) {
 	return
 }
 
+func requestRender(x, y, z uint32) {
+	c, err := net.Dial("unix", "/var/run/renderd/renderd.sock")
+	if err != nil {
+		panic(err)
+	}
+	defer c.Close()
+	// Version
+	binary.Write(c, binary.LittleEndian, uint32(3))
+	// RenderPrio
+	binary.Write(c, binary.LittleEndian, uint32(5))
+	binary.Write(c, binary.LittleEndian, x)
+	binary.Write(c, binary.LittleEndian, y)
+	binary.Write(c, binary.LittleEndian, z)
+	c.Write([]byte("ajt"))
+	for i := 0; i < 64-(4*5+len("ajt")); i++ {
+		c.Write([]byte{0})
+	}
+	response := make([]byte, 64)
+	n, err := c.Read(response)
+	if err != nil {
+		panic(err)
+	}
+	println(n)
+	println(response)
+}
+
 func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string) {
 	z, x, y, err := parsePath(req.URL.Path)
 	if err != nil {
@@ -141,7 +160,20 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string
 	}
 	resp.Header().Add("Content-Type", "image/png")
 	metatile_path, metatile_offset := findPath(*data_dir, z, x, y)
-	errPng := readPNGTile(resp, req, metatile_path, metatile_offset)
+	fileInfo, statErr := os.Stat(metatile_path)
+	if statErr != nil {
+		if errors.Is(statErr, os.ErrNotExist) {
+			// TODO request path
+			requestRender(x, y, z)
+			resp.WriteHeader(http.StatusNotFound)
+			return
+		} else {
+			resp.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+	modTime := fileInfo.ModTime()
+	errPng := readPNGTile(resp, req, metatile_path, metatile_offset, modTime)
 	if errPng != nil {
 		resp.WriteHeader(http.StatusInternalServerError)
 	}
@@ -154,6 +186,7 @@ func main() {
 	flag.Parse()
 	http.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
+			// TODO return 4xx wrong method
 			return
 		}
 		handleRequest(w, r, data_dir)
