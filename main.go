@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"regexp"
@@ -37,8 +36,7 @@ func findPath(baseDir string, z, x, y uint32) (metaPath string, offset uint32) {
 	var hash [5]byte
 
 	// Default value
-	var METATILE uint32
-	METATILE = 8
+	var METATILE = uint32(8)
 	mask = METATILE - 1
 	offset = (x&mask)*METATILE + (y & mask)
 	x &= ^mask
@@ -123,67 +121,6 @@ func parsePath(path string) (z, x, y uint32, err error) {
 	x = uint32(xInt)
 	y = uint32(yInt)
 	return
-}
-
-func requestRender(x, y, z uint32) error {
-	c, err := net.Dial("unix", "/var/run/renderd/renderd.sock")
-	if err != nil {
-		panic(err)
-	}
-	defer c.Close()
-	c.SetDeadline(time.Now().Add(30 * time.Second))
-	// Version
-	if err := binary.Write(c, binary.LittleEndian, uint32(3)); err != nil {
-		return err
-	}
-	// RenderPrio
-	if err := binary.Write(c, binary.LittleEndian, uint32(5)); err != nil {
-		return err
-	}
-	if err := binary.Write(c, binary.LittleEndian, x); err != nil {
-		return err
-	}
-	if err := binary.Write(c, binary.LittleEndian, y); err != nil {
-		return err
-	}
-	if err := binary.Write(c, binary.LittleEndian, z); err != nil {
-		return err
-	}
-	if n, err := c.Write([]byte("ajt")); n != 3 {
-		return errors.New("could not write request. Not all bytes were written")
-	} else if err != nil {
-		return err
-	}
-	// Filling up null bytes
-	for i := 0; i < 64-(4*5+len("ajt")); i++ {
-		c.Write([]byte{0})
-	}
-
-	var protocol_version uint32
-	err = binary.Read(c, binary.LittleEndian, &protocol_version)
-	if err != nil {
-		return err
-	}
-	if protocol_version != 3 {
-		return fmt.Errorf("unsupported protocol version: %d", protocol_version)
-	}
-	var response_code uint32
-	err = binary.Read(c, binary.LittleEndian, &response_code)
-	if err != nil {
-		return err
-	}
-	if response_code != 3 {
-		return fmt.Errorf("render request not successful. Received response code: %d", response_code)
-	}
-	response := make([]byte, 56)
-	n, err := c.Read(response)
-	if err != nil {
-		return err
-	}
-	if n != len(response) {
-		return errors.New("could not read response. Unexpected number of bytes")
-	}
-	return nil
 }
 
 func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string) {
