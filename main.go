@@ -125,30 +125,65 @@ func parsePath(path string) (z, x, y uint32, err error) {
 	return
 }
 
-func requestRender(x, y, z uint32) {
+func requestRender(x, y, z uint32) error {
 	c, err := net.Dial("unix", "/var/run/renderd/renderd.sock")
 	if err != nil {
 		panic(err)
 	}
 	defer c.Close()
+	c.SetDeadline(time.Now().Add(30 * time.Second))
 	// Version
-	binary.Write(c, binary.LittleEndian, uint32(3))
+	if err := binary.Write(c, binary.LittleEndian, uint32(3)); err != nil {
+		return err
+	}
 	// RenderPrio
-	binary.Write(c, binary.LittleEndian, uint32(5))
-	binary.Write(c, binary.LittleEndian, x)
-	binary.Write(c, binary.LittleEndian, y)
-	binary.Write(c, binary.LittleEndian, z)
-	c.Write([]byte("ajt"))
+	if err := binary.Write(c, binary.LittleEndian, uint32(5)); err != nil {
+		return err
+	}
+	if err := binary.Write(c, binary.LittleEndian, x); err != nil {
+		return err
+	}
+	if err := binary.Write(c, binary.LittleEndian, y); err != nil {
+		return err
+	}
+	if err := binary.Write(c, binary.LittleEndian, z); err != nil {
+		return err
+	}
+	if n, err := c.Write([]byte("ajt")); n != 3 {
+		return errors.New("could not write request. Not all bytes were written")
+	} else if err != nil {
+		return err
+	}
+	// Filling up null bytes
 	for i := 0; i < 64-(4*5+len("ajt")); i++ {
 		c.Write([]byte{0})
 	}
-	response := make([]byte, 64)
+
+	var protocol_version uint32
+	err = binary.Read(c, binary.LittleEndian, &protocol_version)
+	if err != nil {
+		return err
+	}
+	if protocol_version != 3 {
+		return fmt.Errorf("unsupported protocol version: %d", protocol_version)
+	}
+	var response_code uint32
+	err = binary.Read(c, binary.LittleEndian, &response_code)
+	if err != nil {
+		return err
+	}
+	if response_code != 3 {
+		return fmt.Errorf("render request not successful. Received response code: %d", response_code)
+	}
+	response := make([]byte, 56)
 	n, err := c.Read(response)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	println(n)
-	println(response)
+	if n != len(response) {
+		return errors.New("could not read response. Unexpected number of bytes")
+	}
+	return nil
 }
 
 func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string) {
@@ -163,10 +198,19 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string
 	fileInfo, statErr := os.Stat(metatile_path)
 	if statErr != nil {
 		if errors.Is(statErr, os.ErrNotExist) {
-			// TODO request path
-			requestRender(x, y, z)
-			resp.WriteHeader(http.StatusNotFound)
-			return
+			renderErr := requestRender(x, y, z)
+			if renderErr != nil {
+				fmt.Printf("Could not generate tile for coordinates %d, %d, %d (x,y,z). '%s'\n", x, y, z, renderErr)
+				// Not returning as we are hoping and praying that rendering did nonetheless produce a file
+			}
+			if fileInfo, statErr = os.Stat(metatile_path); statErr != nil {
+				if renderErr == nil {
+					fmt.Printf("warning: metatile could not be found after successful render. Are the paths matching? Tried %s\n", metatile_path)
+				}
+				// we haven't checked if this was actually a NotFound error, and even then, this is not a client error, so a 5xx is warranted
+				resp.WriteHeader(http.StatusInternalServerError)
+				return
+			}
 		} else {
 			resp.WriteHeader(http.StatusInternalServerError)
 			return
@@ -186,7 +230,8 @@ func main() {
 	flag.Parse()
 	http.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
-			// TODO return 4xx wrong method
+			w.WriteHeader(http.StatusMethodNotAllowed) // TODO return 4xx wrong method
+			w.Write([]byte("Only GET requests allowed"))
 			return
 		}
 		handleRequest(w, r, data_dir)
