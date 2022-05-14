@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"time"
 )
 
 /*
@@ -35,8 +36,7 @@ func findPath(baseDir string, z, x, y uint32) (metaPath string, offset uint32) {
 	var hash [5]byte
 
 	// Default value
-	var METATILE uint32
-	METATILE = 8
+	var METATILE = uint32(8)
 	mask = METATILE - 1
 	offset = (x&mask)*METATILE + (y & mask)
 	x &= ^mask
@@ -62,16 +62,7 @@ func readInt(file *os.File) (uint32, error) {
 	return binary.LittleEndian.Uint32(b), nil
 }
 
-func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32) error {
-	fileInfo, statErr := os.Stat(metatile_path)
-	if statErr != nil {
-		if errors.Is(statErr, os.ErrNotExist) {
-			writer.WriteHeader(http.StatusNotFound)
-			return nil
-		}
-		return statErr
-	}
-	modTime := fileInfo.ModTime()
+func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time) error {
 	file, err := os.Open(metatile_path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -141,7 +132,29 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string
 	}
 	resp.Header().Add("Content-Type", "image/png")
 	metatile_path, metatile_offset := findPath(*data_dir, z, x, y)
-	errPng := readPNGTile(resp, req, metatile_path, metatile_offset)
+	fileInfo, statErr := os.Stat(metatile_path)
+	if statErr != nil {
+		if errors.Is(statErr, os.ErrNotExist) {
+			renderErr := requestRender(x, y, z)
+			if renderErr != nil {
+				fmt.Printf("Could not generate tile for coordinates %d, %d, %d (x,y,z). '%s'\n", x, y, z, renderErr)
+				// Not returning as we are hoping and praying that rendering did nonetheless produce a file
+			}
+			if fileInfo, statErr = os.Stat(metatile_path); statErr != nil {
+				if renderErr == nil {
+					fmt.Printf("warning: metatile could not be found after successful render. Are the paths matching? Tried %s\n", metatile_path)
+				}
+				// we haven't checked if this was actually a NotFound error, and even then, this is not a client error, so a 5xx is warranted
+				resp.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		} else {
+			resp.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+	modTime := fileInfo.ModTime()
+	errPng := readPNGTile(resp, req, metatile_path, metatile_offset, modTime)
 	if errPng != nil {
 		resp.WriteHeader(http.StatusInternalServerError)
 	}
@@ -154,6 +167,8 @@ func main() {
 	flag.Parse()
 	http.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
+			w.WriteHeader(http.StatusMethodNotAllowed) // TODO return 4xx wrong method
+			w.Write([]byte("Only GET requests allowed"))
 			return
 		}
 		handleRequest(w, r, data_dir)
