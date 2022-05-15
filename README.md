@@ -18,6 +18,13 @@ Currently supported features:
 
 ## Usage
 
+### With a renderd backend
+
+* Currently there are no prebuilt binaries included here, so you need to build from source (`go build .`)
+* go_tile is hardcoded to use `/var/run/renderd/renderd.sock` right now
+
+### With prerendered Tiles
+
 With Docker:
 
 ```
