@@ -20,7 +20,8 @@ Currently supported features:
 
 ### With a renderd backend
 
-* Currently there are no prebuilt binaries included here, so you need to build from source (`go build .`)
+* Currently there are no binaries included here automatically (I might have manually included them for some releases), so you may need to build from source (`go build .`)
+* a slippymap with leaflet is provided in the ./static/ folder
 * You need to have a working renderd setup
 
 ### With prerendered Tiles
