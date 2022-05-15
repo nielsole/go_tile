@@ -68,7 +68,8 @@ func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path st
 		if errors.Is(err, os.ErrNotExist) {
 			writer.WriteHeader(http.StatusNotFound)
 		} else {
-			fmt.Println("Error opening file!!!", metatile_path)
+			fmt.Println("Could not open file!", metatile_path)
+			fmt.Println(err)
 			writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return nil
@@ -93,9 +94,7 @@ func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path st
 	if err != nil {
 		return err
 	}
-	file.Stat()
-	file.Seek(int64(tile_offset), 0)
-	http.ServeContent(writer, req, "file.png", modTime, NewSubFileReaderSeeker(file, int(tile_offset), int(tile_length)))
+	http.ServeContent(writer, req, "file.png", modTime, NewSubFileReaderSeeker(file, int64(tile_offset), int64(tile_length)))
 	return nil
 }
 
