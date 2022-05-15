@@ -21,7 +21,7 @@ Currently supported features:
 ### With a renderd backend
 
 * Currently there are no prebuilt binaries included here, so you need to build from source (`go build .`)
-* go_tile is hardcoded to use `/var/run/renderd/renderd.sock` right now
+* You need to have a working renderd setup
 
 ### With prerendered Tiles
 
@@ -36,11 +36,15 @@ Now you can view your map at <http://localhost:8080/>. Tiles are served at <http
 If you prefer to run the binary directly you have the following options:
 
 ```
-Usage of /tmp/go-build004735986/b001/exe/osm-tileserver:
+Usage of /tmp/go-build2340306719/b001/exe/osm-tileserver:
   -data string
         Path to directory containing tiles (default "./data")
   -port string
         Listening port (default ":8080")
+  -renderd-timeout int
+        time in seconds to wait for renderd before returning an error to the client. Set negative to disable (default 60)
+  -socket string
+        Path to renderd socket. Set to '' to disable rendering (default "/var/run/renderd/renderd.sock")
   -static string
         Path to static file directory (default "./static/")
 ```

@@ -22,13 +22,15 @@ type Request struct {
 	Map         [44]byte
 }
 
-func requestRender(x, y, z uint32) error {
-	c, err := net.Dial("unix", "/var/run/renderd/renderd.sock")
+func requestRender(x, y, z uint32, renderd_sock_path string, renderd_timeout time.Duration) error {
+	c, err := net.Dial("unix", renderd_sock_path)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	defer c.Close()
-	c.SetDeadline(time.Now().Add(30 * time.Second))
+	if renderd_timeout > 0 {
+		c.SetDeadline(time.Now().Add(renderd_timeout))
+	}
 	request := Request{
 		Version:     3,
 		CmdPriority: 5,
