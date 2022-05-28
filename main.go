@@ -31,7 +31,7 @@ import (
  * along with this program; If not, see http://www.gnu.org/licenses/.
  */
 
-func findPath(baseDir string, z, x, y uint32) (metaPath string, offset uint32) {
+func findPath(baseDir, mapName string, z, x, y uint32) (metaPath string, offset uint32) {
 	var mask uint32
 	var hash [5]byte
 
@@ -47,7 +47,7 @@ func findPath(baseDir string, z, x, y uint32) (metaPath string, offset uint32) {
 		x >>= 4
 		y >>= 4
 	}
-	metaPath = fmt.Sprintf("%s/%d/%d/%d/%d/%d/%d.meta", baseDir, z, hash[4], hash[3], hash[2], hash[1], hash[0])
+	metaPath = fmt.Sprintf("%s/%s/%d/%d/%d/%d/%d/%d.meta", baseDir, mapName, z, hash[4], hash[3], hash[2], hash[1], hash[0])
 	return
 }
 
@@ -122,7 +122,7 @@ func parsePath(path string) (z, x, y uint32, err error) {
 	return
 }
 
-func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string, map_name, renderd_sock_path string, renderd_timeout time.Duration) {
+func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_name, renderd_sock_path string, renderd_timeout time.Duration) {
 	z, x, y, err := parsePath(req.URL.Path)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
@@ -130,7 +130,7 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string
 		return
 	}
 	resp.Header().Add("Content-Type", "image/png")
-	metatile_path, metatile_offset := findPath(*data_dir, z, x, y)
+	metatile_path, metatile_offset := findPath(data_dir, map_name, z, x, y)
 	fileInfo, statErr := os.Stat(metatile_path)
 	if statErr != nil {
 		if errors.Is(statErr, os.ErrNotExist) {
@@ -169,7 +169,7 @@ func main() {
 	static_dir := flag.String("static", "./static/", "Path to static file directory")
 	renderd_sock_path := flag.String("socket", "/var/run/renderd/renderd.sock", "Path to renderd socket. Set to '' to disable rendering")
 	renderd_timeout := flag.Int("renderd-timeout", 60, "time in seconds to wait for renderd before returning an error to the client. Set negative to disable")
-	map_name := flag.String("map", "ajt", "Name of map")
+	map_name := flag.String("map", "ajt", "Name of map. This value is also used to determine the metatile subdirectory")
 	var renderd_timeout_duration time.Duration = time.Duration(*renderd_timeout) * time.Second
 	flag.Parse()
 	http.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
@@ -178,7 +178,7 @@ func main() {
 			w.Write([]byte("Only GET requests allowed"))
 			return
 		}
-		handleRequest(w, r, data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration)
+		handleRequest(w, r, *data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration)
 	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.FileServer(http.Dir(*static_dir)).ServeHTTP(w, r)
