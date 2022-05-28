@@ -40,6 +40,8 @@ If you prefer to run the binary directly you have the following options:
 Usage of /tmp/go-build2340306719/b001/exe/osm-tileserver:
   -data string
         Path to directory containing tiles (default "./data")
+  -map string
+        Name of map. This value is also used to determine the metatile subdirectory (default "ajt")
   -port string
         Listening port (default ":8080")
   -renderd-timeout int
@@ -58,7 +60,7 @@ Usage of /tmp/go-build2340306719/b001/exe/osm-tileserver:
 2. Follow the [breadcrumbs](https://github.com/Overv/openstreetmap-tile-server/issues/15) about how to pregenerate tiles for the desired area and zoom-level.
     1. Get a shell in the container: `docker exec -it $CONTAINER_NAME bash`
     2. Download a script that makes it easier to specify GPS coordinates: `curl -o render_list_geo.pl https://raw.githubusercontent.com/alx77/render_list_geo.pl/master/render_list_geo.pl`
-    3. Pregenerate the tiles to your liking: `perl ./render_list_geo.pl -m ajt  -n 3 -z 6 -Z 16 -x 2.5 -X 6.5 -y 49.4 -Y 51.6`
+    3. Pregenerate the tiles to your liking: `perl ./render_list_geo.pl -m ajt -n 3 -z 6 -Z 16 -x 2.5 -X 6.5 -y 49.4 -Y 51.6`
 3. Cheers, you now have tiles in the `$YOUR_TILE_FOLDER`.
 
 ## Performance
@@ -102,5 +104,5 @@ Percentage of the requests served within a certain time (ms)
  100%      9 (longest request)
 ```
 
-This benchmark doesn't access the disk, as the tile has obviously been cached in memory. 
+This benchmark doesn't access the disk, as the tile has obviously been cached in memory.
 Anyways it should give you an indication of whether this is fast enough for your use-case.
