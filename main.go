@@ -122,7 +122,7 @@ func parsePath(path string) (z, x, y uint32, err error) {
 	return
 }
 
-func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string, renderd_sock_path string, renderd_timeout time.Duration) {
+func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string, map_name, renderd_sock_path string, renderd_timeout time.Duration) {
 	z, x, y, err := parsePath(req.URL.Path)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
@@ -138,7 +138,7 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir *string
 				resp.WriteHeader(http.StatusNotFound)
 				return
 			}
-			renderErr := requestRender(x, y, z, renderd_sock_path, renderd_timeout)
+			renderErr := requestRender(x, y, z, map_name, renderd_sock_path, renderd_timeout)
 			if renderErr != nil {
 				fmt.Printf("Could not generate tile for coordinates %d, %d, %d (x,y,z). '%s'\n", x, y, z, renderErr)
 				// Not returning as we are hoping and praying that rendering did nonetheless produce a file
@@ -169,6 +169,7 @@ func main() {
 	static_dir := flag.String("static", "./static/", "Path to static file directory")
 	renderd_sock_path := flag.String("socket", "/var/run/renderd/renderd.sock", "Path to renderd socket. Set to '' to disable rendering")
 	renderd_timeout := flag.Int("renderd-timeout", 60, "time in seconds to wait for renderd before returning an error to the client. Set negative to disable")
+	map_name := flag.String("map", "ajt", "Name of map")
 	var renderd_timeout_duration time.Duration = time.Duration(*renderd_timeout) * time.Second
 	flag.Parse()
 	http.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
@@ -177,7 +178,7 @@ func main() {
 			w.Write([]byte("Only GET requests allowed"))
 			return
 		}
-		handleRequest(w, r, data_dir, *renderd_sock_path, renderd_timeout_duration)
+		handleRequest(w, r, data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration)
 	})
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.FileServer(http.Dir(*static_dir)).ServeHTTP(w, r)
