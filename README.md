@@ -55,7 +55,8 @@ Usage of ./osm-tileserver:
   -tls_key_path string
         Path to TLS key
   -tls_port string
-        HTTPS Listening port. This listener is only enabled if both tls cert and key are set. (default ":8443")```
+        HTTPS Listening port. This listener is only enabled if both tls cert and key are set. (default ":8443")
+```
 
 ## Pregenerate static tiles using mod_tile
 
