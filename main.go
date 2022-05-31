@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -94,7 +95,7 @@ func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path st
 	if err != nil {
 		return err
 	}
-	http.ServeContent(writer, req, "file.png", modTime, NewSubFileReaderSeeker(file, int64(tile_offset), int64(tile_length)))
+	http.ServeContent(writer, req, "file.png", modTime, io.NewSectionReader(file, int64(tile_offset), int64(tile_length)))
 	return nil
 }
 

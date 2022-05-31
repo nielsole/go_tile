@@ -2,7 +2,7 @@
 
 go_tile is a drop-in replacement for mod_tile.
 It should work with both renderd and tirex, although development has thus far only been done with renderd.
-go_tile is a static ~6MB binary with no external libraries, minimal memory footprint.
+go_tile is a static ~6MB binary with no external libraries, small memory footprint.
 
 Currently supported features:
 * serve tiles already generated
