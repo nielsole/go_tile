@@ -22,7 +22,7 @@ type Request struct {
 	Map         [44]byte
 }
 
-func requestRender(x, y, z uint32, map_name, renderd_sock_path string, renderd_timeout time.Duration) error {
+func requestRender(x, y, z uint32, map_name, renderd_sock_path string, renderd_timeout time.Duration, priority int) error {
 	c, err := net.Dial("unix", renderd_sock_path)
 	if err != nil {
 		return err
@@ -33,7 +33,7 @@ func requestRender(x, y, z uint32, map_name, renderd_sock_path string, renderd_t
 	}
 	request := Request{
 		Version:     3,
-		CmdPriority: 5,
+		CmdPriority: uint32(priority),
 		X:           x,
 		Y:           y,
 		Z:           z,

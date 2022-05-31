@@ -50,6 +50,8 @@ Usage of ./osm-tileserver:
         Path to renderd socket. Set to '' to disable rendering (default "/var/run/renderd/renderd.sock")
   -static string
         Path to static file directory (default "./static/")
+  -tile_expiration duration
+        Duration(example for a week: '168h') after which tiles are considered stale. Disabled by default
   -tls_cert_path string
         Path to TLS certificate
   -tls_key_path string

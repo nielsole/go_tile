@@ -124,7 +124,7 @@ func parsePath(path string) (z, x, y uint32, err error) {
 	return
 }
 
-func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_name, renderd_sock_path string, renderd_timeout time.Duration) {
+func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_name, renderd_sock_path string, renderd_timeout time.Duration, tile_expiration time.Duration) {
 	z, x, y, err := parsePath(req.URL.Path)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
@@ -140,7 +140,7 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 				resp.WriteHeader(http.StatusNotFound)
 				return
 			}
-			renderErr := requestRender(x, y, z, map_name, renderd_sock_path, renderd_timeout)
+			renderErr := requestRender(x, y, z, map_name, renderd_sock_path, renderd_timeout, 5)
 			if renderErr != nil {
 				fmt.Printf("Could not generate tile for coordinates %d, %d, %d (x,y,z). '%s'\n", x, y, z, renderErr)
 				// Not returning as we are hoping and praying that rendering did nonetheless produce a file
@@ -156,6 +156,11 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 		} else {
 			resp.WriteHeader(http.StatusInternalServerError)
 			return
+		}
+	} else if tile_expiration > 0 {
+		modTime := fileInfo.ModTime()
+		if modTime.Add(tile_expiration).Before(time.Now()) {
+			go requestRender(x, y, z, map_name, renderd_sock_path, renderd_timeout, 7)
 		}
 	}
 	modTime := fileInfo.ModTime()
@@ -175,6 +180,7 @@ func main() {
 	map_name := flag.String("map", "ajt", "Name of map. This value is also used to determine the metatile subdirectory")
 	tls_cert_path := flag.String("tls_cert_path", "", "Path to TLS certificate")
 	tls_key_path := flag.String("tls_key_path", "", "Path to TLS key")
+	tile_expiration_duration := flag.Duration("tile_expiration", 0, "Duration(example for a week: '168h') after which tiles are considered stale. Disabled by default")
 	var renderd_timeout_duration time.Duration = time.Duration(*renderd_timeout) * time.Second
 	flag.Parse()
 	// Renderd expects at most 64 bytes.
@@ -195,7 +201,7 @@ func main() {
 			w.Write([]byte("Only GET requests allowed"))
 			return
 		}
-		handleRequest(w, r, *data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration)
+		handleRequest(w, r, *data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration, *tile_expiration_duration)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.FileServer(http.Dir(*static_dir)).ServeHTTP(w, r)
