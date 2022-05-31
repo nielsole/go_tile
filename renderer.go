@@ -22,7 +22,7 @@ type Request struct {
 	Map         [44]byte
 }
 
-func requestRender(x, y, z uint32, renderd_sock_path string, renderd_timeout time.Duration) error {
+func requestRender(x, y, z uint32, map_name, renderd_sock_path string, renderd_timeout time.Duration) error {
 	c, err := net.Dial("unix", renderd_sock_path)
 	if err != nil {
 		return err
@@ -38,7 +38,7 @@ func requestRender(x, y, z uint32, renderd_sock_path string, renderd_timeout tim
 		Y:           y,
 		Z:           z,
 	}
-	copy(request.Map[:], []byte("ajt"))
+	copy(request.Map[:], []byte(map_name))
 	if err := binary.Write(c, binary.LittleEndian, request); err != nil {
 		return err
 	}
