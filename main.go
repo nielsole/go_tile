@@ -173,6 +173,17 @@ func main() {
 	map_name := flag.String("map", "ajt", "Name of map. This value is also used to determine the metatile subdirectory")
 	var renderd_timeout_duration time.Duration = time.Duration(*renderd_timeout) * time.Second
 	flag.Parse()
+	// Renderd expects at most 64 bytes.
+	// 64 - (5 * 4 bytes - 1 zero byte of null-terminated string) = 43
+	if len(*map_name) > 43 {
+		log.Fatal("Map name may not be longer than 43 characters")
+	}
+	if len(*renderd_sock_path) > 0 {
+		_, err := os.Stat(*renderd_sock_path)
+		if err != nil {
+			log.Printf("Sanity Check Warning: There was an error with the renderd socket at '%s': %v", *renderd_sock_path, err)
+		}
+	}
 	http.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
 			w.WriteHeader(http.StatusMethodNotAllowed) // TODO return 4xx wrong method
