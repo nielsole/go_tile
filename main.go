@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
@@ -165,12 +166,15 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 }
 
 func main() {
-	listen_port := flag.String("port", ":8080", "Listening port")
+	http_listen_port := flag.String("port", ":8080", "HTTP Listening port")
+	tls_listen_port := flag.String("tls_port", ":8443", "HTTPS Listening port. This listener is only enabled if both tls cert and key are set.")
 	data_dir := flag.String("data", "./data", "Path to directory containing tiles")
 	static_dir := flag.String("static", "./static/", "Path to static file directory")
 	renderd_sock_path := flag.String("socket", "/var/run/renderd/renderd.sock", "Path to renderd socket. Set to '' to disable rendering")
 	renderd_timeout := flag.Int("renderd-timeout", 60, "time in seconds to wait for renderd before returning an error to the client. Set negative to disable")
 	map_name := flag.String("map", "ajt", "Name of map. This value is also used to determine the metatile subdirectory")
+	tls_cert_path := flag.String("tls_cert_path", "", "Path to TLS certificate")
+	tls_key_path := flag.String("tls_key_path", "", "Path to TLS key")
 	var renderd_timeout_duration time.Duration = time.Duration(*renderd_timeout) * time.Second
 	flag.Parse()
 	// Renderd expects at most 64 bytes.
@@ -184,7 +188,8 @@ func main() {
 			log.Printf("Sanity Check Warning: There was an error with the renderd socket at '%s': %v", *renderd_sock_path, err)
 		}
 	}
-	http.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "GET" {
 			w.WriteHeader(http.StatusMethodNotAllowed) // TODO return 4xx wrong method
 			w.Write([]byte("Only GET requests allowed"))
@@ -192,11 +197,34 @@ func main() {
 		}
 		handleRequest(w, r, *data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration)
 	})
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.FileServer(http.Dir(*static_dir)).ServeHTTP(w, r)
 	})
-	fmt.Printf("Listening on port %s\n", *listen_port)
-	err := http.ListenAndServe(*listen_port, nil)
+
+	server := &http.Server{
+		Handler: mux,
+	}
+	if len(*tls_cert_path) > 0 && len(*tls_key_path) > 0 {
+		go func() {
+			fmt.Printf("Listening on port %s\n", *tls_listen_port)
+			tls_listener, err := net.Listen("tcp", *tls_listen_port)
+			if err != nil {
+				log.Fatal(err)
+			}
+			err = server.ServeTLS(tls_listener, *tls_cert_path, *tls_key_path)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}()
+	} else {
+		fmt.Println("TLS is disabled")
+	}
+	fmt.Printf("Listening on port %s\n", *http_listen_port)
+	http_listener, err := net.Listen("tcp", *http_listen_port)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = server.Serve(http_listener)
 	if err != nil {
 		log.Fatal(err)
 	}
