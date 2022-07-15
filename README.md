@@ -114,3 +114,18 @@ Percentage of the requests served within a certain time (ms)
 
 This benchmark doesn't access the disk, as the tile has obviously been cached in memory.
 Anyways it should give you an indication of whether this is fast enough for your use-case.
+
+## Horizontal Scaling
+
+go_tile is supposed to enable the OSM stack to be horizontally scalable.
+This means going away from a single server which holds all the tiles and move to an architecture where many renderers can run in parallel.
+The database should be horizontally scalable, too.
+This means every renderer could have its own database locally or a large centrally managed database cluster.
+Replacing the mod_tile+mapnik stack is not trivially possible.
+Bindings for mapnik for other languages are not usable.
+The target architecture will allow requesting metatiles via HTTP, so that caching can be done by any fronting HTTP server.
+To enable this without having to rewrite mod_tile+mapnik, these two components will be wrapped and their functionality exposed via HTTP.
+This is an HTTP server which serves metatiles and deletes every tile it requests after serving it.
+
+This effectively creates a dumb renderer which just renders, without doing any queue management and state assumptions.
+This allows us to break these components out and scale them independently.

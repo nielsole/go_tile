@@ -99,6 +99,23 @@ func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path st
 	http.ServeContent(writer, req, "file.png", modTime, io.NewSectionReader(file, int64(tile_offset), int64(tile_length)))
 	return nil
 }
+func readMetaTile(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time) error {
+	file, err := os.Open(metatile_path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writer.WriteHeader(http.StatusNotFound)
+		} else {
+			fmt.Println("Could not open file!", metatile_path)
+			fmt.Println(err)
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+		return nil
+	}
+	defer file.Close()
+	writer.Header().Add("Cache-Control", "no-cache")
+	http.ServeContent(writer, req, "file.png", modTime, file)
+	return nil
+}
 
 func parsePath(path string) (z, x, y uint32, err error) {
 	matcher := regexp.MustCompile(`/tile/([0-9]+)/([0-9]+)/([0-9]+).png`)
@@ -124,7 +141,7 @@ func parsePath(path string) (z, x, y uint32, err error) {
 	return
 }
 
-func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_name, renderd_sock_path string, renderd_timeout time.Duration, tile_expiration time.Duration) {
+func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_name, renderd_sock_path string, renderd_timeout time.Duration, tile_expiration time.Duration, delete_metatiles bool, responder func(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time) error) {
 	z, x, y, err := parsePath(req.URL.Path)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
@@ -167,6 +184,11 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 	errPng := readPNGTile(resp, req, metatile_path, metatile_offset, modTime)
 	if errPng != nil {
 		resp.WriteHeader(http.StatusInternalServerError)
+	} else if delete_metatiles {
+		err := os.Remove(metatile_path)
+		if err != nil {
+			fmt.Printf("warning: could not delete metatile: %s", err)
+		}
 	}
 }
 
@@ -176,10 +198,11 @@ func main() {
 	data_dir := flag.String("data", "./data", "Path to directory containing tiles")
 	static_dir := flag.String("static", "./static/", "Path to static file directory")
 	renderd_sock_path := flag.String("socket", "/var/run/renderd/renderd.sock", "Path to renderd socket. Set to '' to disable rendering")
-	renderd_timeout := flag.Int("renderd-timeout", 60, "time in seconds to wait for renderd before returning an error to the client. Set negative to disable")
+	renderd_timeout := flag.Int("renderd_timeout", 60, "time in seconds to wait for renderd before returning an error to the client. Set negative to disable")
 	map_name := flag.String("map", "ajt", "Name of map. This value is also used to determine the metatile subdirectory")
 	tls_cert_path := flag.String("tls_cert_path", "", "Path to TLS certificate")
 	tls_key_path := flag.String("tls_key_path", "", "Path to TLS key")
+	delete_metatiles := flag.Bool("delete_metatile", false, "Whether to delete the metatile from disk after serving. This is useful for pseudeo stateless operation.")
 	tile_expiration_duration := flag.Duration("tile_expiration", 0, "Duration(example for a week: '168h') after which tiles are considered stale. Disabled by default")
 	var renderd_timeout_duration time.Duration = time.Duration(*renderd_timeout) * time.Second
 	flag.Parse()
@@ -201,7 +224,15 @@ func main() {
 			w.Write([]byte("Only GET requests allowed"))
 			return
 		}
-		handleRequest(w, r, *data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration, *tile_expiration_duration)
+		handleRequest(w, r, *data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration, *tile_expiration_duration, *delete_metatiles, readPNGTile)
+	})
+	mux.HandleFunc("/metatile/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			w.WriteHeader(http.StatusMethodNotAllowed) // TODO return 4xx wrong method
+			w.Write([]byte("Only GET requests allowed"))
+			return
+		}
+		handleRequest(w, r, *data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration, *tile_expiration_duration, *delete_metatiles, readMetaTile)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.FileServer(http.Dir(*static_dir)).ServeHTTP(w, r)
