@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"flag"
@@ -33,12 +34,17 @@ import (
  * along with this program; If not, see http://www.gnu.org/licenses/.
  */
 
-func findPath(baseDir, mapName string, z, x, y uint32) (metaPath string, offset uint32) {
+const METATILE uint32 = uint32(8)
+
+type PseudoFile interface {
+	io.ReadSeeker
+	io.ReaderAt
+}
+
+func findPath(z, x, y uint32) (metaPath string, offset uint32) {
 	var mask uint32
 	var hash [5]byte
 
-	// Default value
-	var METATILE = uint32(8)
 	mask = METATILE - 1
 	offset = (x&mask)*METATILE + (y & mask)
 	x &= ^mask
@@ -49,11 +55,11 @@ func findPath(baseDir, mapName string, z, x, y uint32) (metaPath string, offset 
 		x >>= 4
 		y >>= 4
 	}
-	metaPath = fmt.Sprintf("%s/%s/%d/%d/%d/%d/%d/%d.meta", baseDir, mapName, z, hash[4], hash[3], hash[2], hash[1], hash[0])
+	metaPath = fmt.Sprintf("%d/%d/%d/%d/%d/%d.meta", z, hash[4], hash[3], hash[2], hash[1], hash[0])
 	return
 }
 
-func readInt(file *os.File) (uint32, error) {
+func readInt(file io.ReadSeeker) (uint32, error) {
 	b := make([]byte, 4)
 	bytesRead, err := file.Read(b)
 	if err != nil {
@@ -64,21 +70,7 @@ func readInt(file *os.File) (uint32, error) {
 	return binary.LittleEndian.Uint32(b), nil
 }
 
-func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time) error {
-	file, err := os.Open(metatile_path)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			writer.WriteHeader(http.StatusNotFound)
-		} else {
-			fmt.Println("Could not open file!", metatile_path)
-			fmt.Println(err)
-			writer.WriteHeader(http.StatusInternalServerError)
-		}
-		return nil
-	}
-	defer file.Close()
-	writer.Header().Add("Cache-Control", "no-cache")
-
+func decodeFile(file PseudoFile, writer http.ResponseWriter, req *http.Request, metatile_offset uint32, modTime time.Time) error {
 	file.Seek(4, 0)
 	tile_count, err := readInt(file)
 	if err != nil {
@@ -97,6 +89,41 @@ func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path st
 		return err
 	}
 	http.ServeContent(writer, req, "file.png", modTime, io.NewSectionReader(file, int64(tile_offset), int64(tile_length)))
+	return nil
+}
+
+func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time) error {
+	file, err := os.Open(metatile_path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writer.WriteHeader(http.StatusNotFound)
+		} else {
+			fmt.Println("Could not open file!", metatile_path)
+			fmt.Println(err)
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+		return nil
+	}
+	defer file.Close()
+	writer.Header().Add("Cache-Control", "no-cache")
+	return decodeFile(file, writer, req, metatile_offset, modTime)
+}
+
+func readMetaTile(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time) error {
+	file, err := os.Open(metatile_path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			writer.WriteHeader(http.StatusNotFound)
+		} else {
+			fmt.Println("Could not open file!", metatile_path)
+			fmt.Println(err)
+			writer.WriteHeader(http.StatusInternalServerError)
+		}
+		return nil
+	}
+	defer file.Close()
+	writer.Header().Add("Cache-Control", "no-cache")
+	http.ServeContent(writer, req, "file.png", modTime, file)
 	return nil
 }
 
@@ -124,7 +151,7 @@ func parsePath(path string) (z, x, y uint32, err error) {
 	return
 }
 
-func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_name, renderd_sock_path string, renderd_timeout time.Duration, tile_expiration time.Duration) {
+func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_name, renderd_sock_path string, renderd_timeout time.Duration, tile_expiration time.Duration, delete_metatiles bool, responder func(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time) error) {
 	z, x, y, err := parsePath(req.URL.Path)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
@@ -132,8 +159,9 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 		return
 	}
 	resp.Header().Add("Content-Type", "image/png")
-	metatile_path, metatile_offset := findPath(data_dir, map_name, z, x, y)
-	fileInfo, statErr := os.Stat(metatile_path)
+	metatile_path, metatile_offset := findPath(z, x, y)
+	complete_metatile_path := fmt.Sprintf("%s/%s/%s", data_dir, map_name, metatile_path)
+	fileInfo, statErr := os.Stat(complete_metatile_path)
 	if statErr != nil {
 		if errors.Is(statErr, os.ErrNotExist) {
 			if len(renderd_sock_path) == 0 {
@@ -167,6 +195,11 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 	errPng := readPNGTile(resp, req, metatile_path, metatile_offset, modTime)
 	if errPng != nil {
 		resp.WriteHeader(http.StatusInternalServerError)
+	} else if delete_metatiles {
+		err := os.Remove(metatile_path)
+		if err != nil {
+			fmt.Printf("warning: could not delete metatile: %s", err)
+		}
 	}
 }
 
@@ -176,10 +209,13 @@ func main() {
 	data_dir := flag.String("data", "./data", "Path to directory containing tiles")
 	static_dir := flag.String("static", "./static/", "Path to static file directory")
 	renderd_sock_path := flag.String("socket", "/var/run/renderd/renderd.sock", "Path to renderd socket. Set to '' to disable rendering")
-	renderd_timeout := flag.Int("renderd-timeout", 60, "time in seconds to wait for renderd before returning an error to the client. Set negative to disable")
+	renderd_timeout := flag.Int("renderd_timeout", 60, "time in seconds to wait for renderd before returning an error to the client. Set negative to disable")
 	map_name := flag.String("map", "ajt", "Name of map. This value is also used to determine the metatile subdirectory")
 	tls_cert_path := flag.String("tls_cert_path", "", "Path to TLS certificate")
 	tls_key_path := flag.String("tls_key_path", "", "Path to TLS key")
+	delete_metatiles := flag.Bool("delete_metatile", false, "Whether to delete the metatile from disk after serving. This is useful for pseudeo stateless operation")
+	proxy_upstream := flag.String("proxy_upstream", "", "Upstream Metatile server")
+	proxy_enabled := flag.Bool("proxy_enabled", false, "Whether to proxy requests to a an upstream instead of trying the filesystem.")
 	tile_expiration_duration := flag.Duration("tile_expiration", 0, "Duration(example for a week: '168h') after which tiles are considered stale. Disabled by default")
 	var renderd_timeout_duration time.Duration = time.Duration(*renderd_timeout) * time.Second
 	flag.Parse()
@@ -201,7 +237,20 @@ func main() {
 			w.Write([]byte("Only GET requests allowed"))
 			return
 		}
-		handleRequest(w, r, *data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration, *tile_expiration_duration)
+		if *proxy_enabled {
+			handleRequestUpstream(w, r, *proxy_upstream)
+		} else {
+			handleRequest(w, r, *data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration, *tile_expiration_duration, *delete_metatiles, readPNGTile)
+		}
+
+	})
+	mux.HandleFunc("/metatile/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "GET" {
+			w.WriteHeader(http.StatusMethodNotAllowed) // TODO return 4xx wrong method
+			w.Write([]byte("Only GET requests allowed"))
+			return
+		}
+		handleRequest(w, r, *data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration, *tile_expiration_duration, *delete_metatiles, readMetaTile)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.FileServer(http.Dir(*static_dir)).ServeHTTP(w, r)
@@ -233,5 +282,38 @@ func main() {
 	err = server.Serve(http_listener)
 	if err != nil {
 		log.Fatal(err)
+	}
+}
+
+func handleRequestUpstream(w http.ResponseWriter, r *http.Request, upstream string) {
+	client := http.Client{
+		// We are setting an unreasonably long timeout, because we do want to see this complete.
+		// We are responding with a 503 to the client earlier.
+		Timeout: 15 * time.Minute,
+	}
+	z, x, y, err := parsePath(r.URL.Path)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	w.Header().Add("Content-Type", "image/png")
+	metaPath, offset := findPath(z, x, y)
+	// TODO add configured timeout
+	resp, err := client.Get(fmt.Sprintf("%s%s", upstream, metaPath))
+
+	// For now we don't care about creation time as we assume the file is just being generated
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Could not read upstream response"))
+		fmt.Printf("Unexpected error during reading upstream: %s", err)
+	}
+	readerSeeker := bytes.NewReader(respBytes)
+	err = decodeFile(readerSeeker, w, r, offset, time.Now())
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Could not decode upstream response"))
+		fmt.Printf("Unexpected error during decoding: %s", err)
 	}
 }
