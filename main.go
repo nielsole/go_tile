@@ -137,6 +137,7 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 	if statErr != nil {
 		if errors.Is(statErr, os.ErrNotExist) {
 			if len(renderd_sock_path) == 0 {
+				fmt.Printf("Tile not found: %s", metatile_path)
 				resp.WriteHeader(http.StatusNotFound)
 				return
 			}
