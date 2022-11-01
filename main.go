@@ -64,8 +64,36 @@ func readInt(file *os.File) (uint32, error) {
 	return binary.LittleEndian.Uint32(b), nil
 }
 
-func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time) error {
+func readPngTile(metatile_path string, metatile_offset uint32) (*os.File, *io.SectionReader, error) {
 	file, err := os.Open(metatile_path)
+	if err != nil {
+		return nil, nil, err
+	}
+	file.Seek(4, 0)
+	tile_count, err := readInt(file)
+	if err != nil {
+		return nil, nil, err
+	}
+	if metatile_offset >= tile_count {
+		return nil, nil, errors.New("requested offset exceeded bounds of metatile")
+	}
+	file.Seek(int64(20+metatile_offset*2*4), 0)
+	tile_offset, err := readInt(file)
+	if err != nil {
+		return nil, nil, err
+	}
+	tile_length, err := readInt(file)
+	if err != nil {
+		return nil, nil, err
+	}
+	return file, io.NewSectionReader(file, int64(tile_offset), int64(tile_length)), nil
+}
+
+func writeTileResponse(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time) error {
+	file, pngReader, err := readPngTile(metatile_path, metatile_offset)
+	if file != nil {
+		defer file.Close()
+	}
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			writer.WriteHeader(http.StatusNotFound)
@@ -76,27 +104,8 @@ func readPNGTile(writer http.ResponseWriter, req *http.Request, metatile_path st
 		}
 		return nil
 	}
-	defer file.Close()
 	writer.Header().Add("Cache-Control", "no-cache")
-
-	file.Seek(4, 0)
-	tile_count, err := readInt(file)
-	if err != nil {
-		return err
-	}
-	if metatile_offset >= tile_count {
-		return errors.New("requested offset exceeded bounds of metatile")
-	}
-	file.Seek(int64(20+metatile_offset*2*4), 0)
-	tile_offset, err := readInt(file)
-	if err != nil {
-		return err
-	}
-	tile_length, err := readInt(file)
-	if err != nil {
-		return err
-	}
-	http.ServeContent(writer, req, "file.png", modTime, io.NewSectionReader(file, int64(tile_offset), int64(tile_length)))
+	http.ServeContent(writer, req, "file.png", modTime, pngReader)
 	return nil
 }
 
@@ -165,7 +174,7 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 		}
 	}
 	modTime := fileInfo.ModTime()
-	errPng := readPNGTile(resp, req, metatile_path, metatile_offset, modTime)
+	errPng := writeTileResponse(resp, req, metatile_path, metatile_offset, modTime)
 	if errPng != nil {
 		resp.WriteHeader(http.StatusInternalServerError)
 	}
