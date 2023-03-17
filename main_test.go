@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -29,13 +30,40 @@ func BenchmarkPngRead(b *testing.B) {
 }
 
 func TestWriteTileResponse(t *testing.T) {
-	req := httptest.NewRequest("GET", "http://example.com/", bytes.NewReader([]byte{}))
-	resp := httptest.ResponseRecorder{}
-	if err := writeTileResponse(&resp, req, "mock_data/0.meta", 0, time.Now()); err != nil {
-		t.Error(err)
+
+	// Prepare test request and response
+	req := httptest.NewRequest("GET", "/tile/0/0/0.png", nil)
+	w := httptest.NewRecorder()
+
+	// Call writeTileResponse function
+	modTime := time.Now()
+	err := writeTileResponse(w, req, "mock_data/0.meta", 0, modTime)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if resp.Code != 200 {
-		t.Errorf("Unexpected response code: %d", resp.Code)
+
+	// Check response status code
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status code %d but got %d", http.StatusOK, w.Code)
+	}
+
+	// Check response header
+	if w.Header().Get("Content-Type") != "image/png" {
+		t.Errorf("unexpected content type: %s", w.Header().Get("Content-Type"))
+	}
+
+	if w.Body.Len() < 100 {
+		t.Errorf("expected body,but got %q", w.Body.String())
+	}
+
+	// Check response caching headers
+	expectedCacheControl := "no-cache"
+	if w.Header().Get("Cache-Control") != expectedCacheControl {
+		t.Errorf("unexpected Cache-Control header: %s", w.Header().Get("Cache-Control"))
+	}
+	expectedLastModified := modTime.UTC().Format(http.TimeFormat)
+	if w.Header().Get("Last-Modified") != expectedLastModified {
+		t.Errorf("unexpected Last-Modified header: %s", w.Header().Get("Last-Modified"))
 	}
 }
 
