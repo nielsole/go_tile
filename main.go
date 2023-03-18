@@ -180,13 +180,12 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 	}
 }
 
-func getSocketType(renderd_socket string) (string) {
-	matcher := regexp.MustCompile(`([^:]+):([0-9]{2,5})`)
-	matches := matcher.FindStringSubmatch(renderd_socket)
-	if len(matches) == 3 {
-		return "tcp"
+func getSocketType(renderd_socket string) (string, *net.TCPAddr) {
+	tcp_addr, _ := net.ResolveTCPAddr("tcp", renderd_socket)
+	if tcp_addr != nil {
+		return "tcp", tcp_addr
 	} else {
-		return "unix"
+		return "unix", tcp_addr
 	}
 }
 
@@ -209,16 +208,17 @@ func main() {
 		log.Fatal("Map name may not be longer than 43 characters")
 	}
 	if len(*renderd_socket) > 0 {
-		renderd_socket_type := getSocketType(*renderd_socket)
+		renderd_socket_type, renderd_tcp_addr := getSocketType(*renderd_socket)
 		if renderd_socket_type == "tcp" {
-			_, err := net.ResolveTCPAddr("tcp", *renderd_socket)
+			c, err := net.DialTCP("tcp", nil, renderd_tcp_addr)
 			if err != nil {
-				log.Fatalf("There was an error with the renderd socket at '%s': %v", *renderd_socket, err)
+				log.Fatalf("There was an error with the renderd %s socket at '%s': %v", renderd_socket_type, *renderd_socket, err)
 			}
+			c.Close()
 		} else {
 			_, err := os.Stat(*renderd_socket)
 			if err != nil {
-				log.Fatalf("There was an error with the renderd socket at '%s': %v", *renderd_socket, err)
+				log.Fatalf("There was an error with the renderd %s socket at '%s': %v", renderd_socket_type, *renderd_socket, err)
 			}
 		}
 		log.Printf("Using renderd %s socket at '%s'", renderd_socket_type, *renderd_socket)
