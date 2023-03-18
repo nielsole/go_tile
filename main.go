@@ -133,7 +133,7 @@ func parsePath(path string) (z, x, y uint32, err error) {
 	return
 }
 
-func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_name, renderd_sock_path string, renderd_timeout time.Duration, tile_expiration time.Duration) {
+func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_name, renderd_socket string, renderd_timeout time.Duration, tile_expiration time.Duration) {
 	z, x, y, err := parsePath(req.URL.Path)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
@@ -145,12 +145,12 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 	fileInfo, statErr := os.Stat(metatile_path)
 	if statErr != nil {
 		if errors.Is(statErr, os.ErrNotExist) {
-			if len(renderd_sock_path) == 0 {
+			if len(renderd_socket) == 0 {
 				fmt.Printf("Tile not found: %s", metatile_path)
 				resp.WriteHeader(http.StatusNotFound)
 				return
 			}
-			renderErr := requestRender(x, y, z, map_name, renderd_sock_path, renderd_timeout, 5)
+			renderErr := requestRender(x, y, z, map_name, renderd_socket, renderd_timeout, 5)
 			if renderErr != nil {
 				fmt.Printf("Could not generate tile for coordinates %d, %d, %d (x,y,z). '%s'\n", x, y, z, renderErr)
 				// Not returning as we are hoping and praying that rendering did nonetheless produce a file
@@ -170,7 +170,7 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 	} else if tile_expiration > 0 {
 		modTime := fileInfo.ModTime()
 		if modTime.Add(tile_expiration).Before(time.Now()) {
-			go requestRender(x, y, z, map_name, renderd_sock_path, renderd_timeout, 7)
+			go requestRender(x, y, z, map_name, renderd_socket, renderd_timeout, 7)
 		}
 	}
 	modTime := fileInfo.ModTime()
@@ -180,12 +180,22 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 	}
 }
 
+func getSocketType(renderd_socket string) (string) {
+	matcher := regexp.MustCompile(`([^:]+):([0-9]{2,5})`)
+	matches := matcher.FindStringSubmatch(renderd_socket)
+	if len(matches) == 3 {
+		return "tcp"
+	} else {
+		return "unix"
+	}
+}
+
 func main() {
 	http_listen_port := flag.String("port", ":8080", "HTTP Listening port")
 	tls_listen_port := flag.String("tls_port", ":8443", "HTTPS Listening port. This listener is only enabled if both tls cert and key are set.")
 	data_dir := flag.String("data", "./data", "Path to directory containing tiles")
 	static_dir := flag.String("static", "./static/", "Path to static file directory")
-	renderd_sock_path := flag.String("socket", "/var/run/renderd/renderd.sock", "Path to renderd socket. Set to '' to disable rendering")
+	renderd_socket := flag.String("socket", "/var/run/renderd/renderd.sock", "Unix domain socket path or hostname:port for contacting renderd. Set to '' to disable rendering")
 	renderd_timeout := flag.Int("renderd-timeout", 60, "time in seconds to wait for renderd before returning an error to the client. Set negative to disable")
 	map_name := flag.String("map", "ajt", "Name of map. This value is also used to determine the metatile subdirectory")
 	tls_cert_path := flag.String("tls_cert_path", "", "Path to TLS certificate")
@@ -198,11 +208,20 @@ func main() {
 	if len(*map_name) > 43 {
 		log.Fatal("Map name may not be longer than 43 characters")
 	}
-	if len(*renderd_sock_path) > 0 {
-		_, err := os.Stat(*renderd_sock_path)
-		if err != nil {
-			log.Printf("Sanity Check Warning: There was an error with the renderd socket at '%s': %v", *renderd_sock_path, err)
+	if len(*renderd_socket) > 0 {
+		renderd_socket_type := getSocketType(*renderd_socket)
+		if renderd_socket_type == "tcp" {
+			_, err := net.ResolveTCPAddr("tcp", *renderd_socket)
+			if err != nil {
+				log.Fatalf("There was an error with the renderd socket at '%s': %v", *renderd_socket, err)
+			}
+		} else {
+			_, err := os.Stat(*renderd_socket)
+			if err != nil {
+				log.Fatalf("There was an error with the renderd socket at '%s': %v", *renderd_socket, err)
+			}
 		}
+		log.Printf("Using renderd %s socket at '%s'", renderd_socket_type, *renderd_socket)
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
@@ -211,7 +230,7 @@ func main() {
 			w.Write([]byte("Only GET requests allowed"))
 			return
 		}
-		handleRequest(w, r, *data_dir, *map_name, *renderd_sock_path, renderd_timeout_duration, *tile_expiration_duration)
+		handleRequest(w, r, *data_dir, *map_name, *renderd_socket, renderd_timeout_duration, *tile_expiration_duration)
 	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.FileServer(http.Dir(*static_dir)).ServeHTTP(w, r)

@@ -47,7 +47,7 @@ Usage of ./osm-tileserver:
   -renderd-timeout int
         time in seconds to wait for renderd before returning an error to the client. Set negative to disable (default 60)
   -socket string
-        Path to renderd socket. Set to '' to disable rendering (default "/var/run/renderd/renderd.sock")
+        Unix domain socket path or hostname:port for contacting renderd. Set to '' to disable rendering (default "/var/run/renderd/renderd.sock")
   -static string
         Path to static file directory (default "./static/")
   -tile_expiration duration
