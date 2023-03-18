@@ -23,7 +23,7 @@ type Request struct {
 }
 
 func getSocketConnection(renderd_socket string) (net.Conn, error) {
-	renderd_socket_type,  renderd_tcp_addr := getSocketType(renderd_socket)
+	renderd_socket_type, renderd_tcp_addr := getSocketType(renderd_socket)
 	if renderd_socket_type == "tcp" {
 		return net.DialTCP("tcp", nil, renderd_tcp_addr)
 	} else {
