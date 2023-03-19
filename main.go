@@ -221,7 +221,7 @@ func main() {
 				log.Fatalf("There was an error with the renderd %s socket at '%s': %v", renderd_socket_type, *renderd_socket, err)
 			}
 		}
-		fmt.Printf("Using renderd %s socket at '%s'", renderd_socket_type, *renderd_socket)
+		fmt.Printf("Using renderd %s socket at '%s'\n", renderd_socket_type, *renderd_socket)
 	} else {
 		fmt.Println("Rendering is disabled")
 	}
