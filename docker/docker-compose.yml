@@ -1,0 +1,32 @@
+---
+services:
+  go_tile:
+    build: ..
+    depends_on:
+      renderd:
+        condition: service_healthy
+    entrypoint: /docker-entrypoint.sh
+    ports:
+      - 8080:8080
+    volumes:
+      - ./go_tile-entrypoint.sh:/docker-entrypoint.sh:ro
+      - osm-tiles:/data/tiles:ro
+  renderd:
+    entrypoint: /docker-entrypoint.sh
+    environment:
+      DOWNLOAD_PBF: https://download.geofabrik.de/europe/germany/hamburg-latest.osm.pbf
+      DOWNLOAD_POLY: https://download.geofabrik.de/europe/germany/hamburg.poly
+    healthcheck:
+      test: ["CMD", "/docker-healthcheck.sh"]
+      start_period: 30m
+    image: overv/openstreetmap-tile-server
+    volumes:
+      - ./renderd-entrypoint.sh:/docker-entrypoint.sh:ro
+      - ./renderd-healthcheck.sh:/docker-healthcheck.sh:ro
+      - osm-data:/data/database/:rw
+      - osm-tiles:/data/tiles:rw
+volumes:
+  osm-data:
+    driver: local
+  osm-tiles:
+    driver: local

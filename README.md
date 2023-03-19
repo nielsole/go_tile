@@ -16,11 +16,17 @@ Currently supported features:
 * Apache2+mod_tile use a thread per request, that should at some point introduce performance problems.
 * mod_tile seems to be mostly in maintenance mode and not open for experimentation (there are many features in mod_tile that I don't plan to include in go_tile)
 
+## Building from source
+
+```shell
+go build .
+```
+
 ## Usage
 
 ### With a renderd backend
 
-* Currently there are no binaries included here automatically (I might have manually included them for some releases), so you may need to build from source (`go build .`)
+* Currently there are no binaries included here automatically (I might have manually included them for some releases), so you will need to build from source
 * a slippymap with leaflet is provided in the ./static/ folder
 * You need to have a working renderd setup
 
@@ -28,11 +34,13 @@ Currently supported features:
 
 With Docker:
 
-```
+```shell
 docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8080:8080 ghcr.io/nielsole/go_tile:latest
 ```
 
 Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/>
+
+### Usage options
 
 If you prefer to run the binary directly you have the following options:
 
