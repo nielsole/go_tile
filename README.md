@@ -20,19 +20,37 @@ Currently supported features:
 
 ### With a renderd backend
 
-* Currently there are no binaries included here automatically (I might have manually included them for some releases), so you may need to build from source (`go build .`)
+* Currently there are no binaries included here automatically (I might have manually included them for some releases), so you will need to build from source
 * a slippymap with leaflet is provided in the ./static/ folder
 * You need to have a working renderd setup
 
-### With prerendered Tiles
+### With Docker and pregenerated static tiles
 
-With Docker:
-
-```
+```shell
 docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8080:8080 ghcr.io/nielsole/go_tile:latest
 ```
 
 Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/>
+
+### With Docker Compose
+
+This will take some time to download and import all of the data files. Currently it is configured to populate the map with `Hamburg, Germany`, but the data files can be changed by modifying `DOWNLOAD_PBF` & `DOWNLOAD_POLY` in the [`docker/docker-compose.yml`](/docker/docker-compose.yml) file.
+
+```shell
+COMPOSE_FILE=docker/docker-compose.yml docker compose up --build
+```
+
+Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/>
+
+### Building from source
+
+If you prefer to build the binary yourself you can simply run:
+
+```shell
+go build .
+```
+
+### Usage options
 
 If you prefer to run the binary directly you have the following options:
 
@@ -47,7 +65,7 @@ Usage of ./osm-tileserver:
   -renderd-timeout int
         time in seconds to wait for renderd before returning an error to the client. Set negative to disable (default 60)
   -socket string
-        Path to renderd socket. Set to '' to disable rendering (default "/var/run/renderd/renderd.sock")
+        Unix domain socket path or hostname:port for contacting renderd. Set to '' to disable rendering (default "")
   -static string
         Path to static file directory (default "./static/")
   -tile_expiration duration
