@@ -16,12 +16,6 @@ Currently supported features:
 * Apache2+mod_tile use a thread per request, that should at some point introduce performance problems.
 * mod_tile seems to be mostly in maintenance mode and not open for experimentation (there are many features in mod_tile that I don't plan to include in go_tile)
 
-## Building from source
-
-```shell
-go build .
-```
-
 ## Usage
 
 ### With a renderd backend
@@ -39,6 +33,24 @@ docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8080:8080 ghcr.io/nielsole/go_
 ```
 
 Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/>
+
+### With Docker Compose
+
+This will take some time to download and import all of the data files. Currently it is configured to populate the map with `Hamburg, Germany`, but the data files can be changed by modifying `DOWNLOAD_PBF` & `DOWNLOAD_POLY` in the [`docker/docker-compose.yml`](/docker/docker-compose.yml) file.
+
+```shell
+COMPOSE_FILE=docker/docker-compose.yml docker compose up --build
+```
+
+Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/>
+
+### Building from source
+
+If you prefer to build the binary yourself you can simply run:
+
+```shell
+go build .
+```
 
 ### Usage options
 
