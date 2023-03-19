@@ -24,9 +24,7 @@ Currently supported features:
 * a slippymap with leaflet is provided in the ./static/ folder
 * You need to have a working renderd setup
 
-### With prerendered Tiles
-
-With Docker:
+### With Docker and pregenerated static tiles
 
 ```shell
 docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8080:8080 ghcr.io/nielsole/go_tile:latest
@@ -67,7 +65,7 @@ Usage of ./osm-tileserver:
   -renderd-timeout int
         time in seconds to wait for renderd before returning an error to the client. Set negative to disable (default 60)
   -socket string
-        Unix domain socket path or hostname:port for contacting renderd. Set to '' to disable rendering (default "/var/run/renderd/renderd.sock")
+        Unix domain socket path or hostname:port for contacting renderd. Set to '' to disable rendering (default "")
   -static string
         Path to static file directory (default "./static/")
   -tile_expiration duration

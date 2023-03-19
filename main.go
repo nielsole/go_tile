@@ -194,7 +194,7 @@ func main() {
 	tls_listen_port := flag.String("tls_port", ":8443", "HTTPS Listening port. This listener is only enabled if both tls cert and key are set.")
 	data_dir := flag.String("data", "./data", "Path to directory containing tiles")
 	static_dir := flag.String("static", "./static/", "Path to static file directory")
-	renderd_socket := flag.String("socket", "/var/run/renderd/renderd.sock", "Unix domain socket path or hostname:port for contacting renderd. Set to '' to disable rendering")
+	renderd_socket := flag.String("socket", "", "Unix domain socket path or hostname:port for contacting renderd. Set to '' to disable rendering")
 	renderd_timeout := flag.Int("renderd-timeout", 60, "time in seconds to wait for renderd before returning an error to the client. Set negative to disable")
 	map_name := flag.String("map", "ajt", "Name of map. This value is also used to determine the metatile subdirectory")
 	tls_cert_path := flag.String("tls_cert_path", "", "Path to TLS certificate")
@@ -221,7 +221,9 @@ func main() {
 				log.Fatalf("There was an error with the renderd %s socket at '%s': %v", renderd_socket_type, *renderd_socket, err)
 			}
 		}
-		log.Printf("Using renderd %s socket at '%s'", renderd_socket_type, *renderd_socket)
+		fmt.Printf("Using renderd %s socket at '%s'", renderd_socket_type, *renderd_socket)
+	} else {
+		fmt.Println("Rendering is disabled")
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {

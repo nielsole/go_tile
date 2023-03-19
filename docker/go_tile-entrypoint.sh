@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
 set -eux
 
-./server \
+go_tile \
   --data /data/tiles \
   --map default \
   --socket renderd:7654 \
-  --static ./static
+  --static /usr/share/go_tile/static

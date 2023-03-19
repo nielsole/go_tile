@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 set -eux
 
-pgrep renderd
+pgrep go_tile
