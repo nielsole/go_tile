@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -98,8 +97,7 @@ func writeTileResponse(writer http.ResponseWriter, req *http.Request, metatile_p
 		if errors.Is(err, os.ErrNotExist) {
 			writer.WriteHeader(http.StatusNotFound)
 		} else {
-			fmt.Println("Could not open file!", metatile_path)
-			fmt.Println(err)
+			logWarningf("Could not open file %s: %v", metatile_path, err)
 			writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return nil
@@ -146,18 +144,18 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 	if statErr != nil {
 		if errors.Is(statErr, os.ErrNotExist) {
 			if len(renderd_socket) == 0 {
-				fmt.Printf("Tile not found: %s", metatile_path)
+				logErrorf("Metatile does not exist: %s", metatile_path)
 				resp.WriteHeader(http.StatusNotFound)
 				return
 			}
 			renderErr := requestRender(x, y, z, map_name, renderd_socket, renderd_timeout, 5)
 			if renderErr != nil {
-				fmt.Printf("Could not generate tile for coordinates %d, %d, %d (x,y,z). '%s'\n", x, y, z, renderErr)
+				logWarningf("Could not generate tile for coordinates %d, %d, %d (x,y,z). '%s'", x, y, z, renderErr)
 				// Not returning as we are hoping and praying that rendering did nonetheless produce a file
 			}
 			if fileInfo, statErr = os.Stat(metatile_path); statErr != nil {
 				if renderErr == nil {
-					fmt.Printf("warning: metatile could not be found after successful render. Are the paths matching? Tried %s\n", metatile_path)
+					logWarningf("Metatile could not be found after successful render. Are the paths matching? Tried %s", metatile_path)
 				}
 				// we haven't checked if this was actually a NotFound error, and even then, this is not a client error, so a 5xx is warranted
 				resp.WriteHeader(http.StatusInternalServerError)
@@ -184,85 +182,108 @@ func getSocketType(renderd_socket string) (string, *net.TCPAddr) {
 	tcp_addr, _ := net.ResolveTCPAddr("tcp", renderd_socket)
 	if tcp_addr != nil {
 		return "tcp", tcp_addr
-	} else {
-		return "unix", tcp_addr
 	}
+	return "unix", nil
 }
 
 func main() {
-	http_listen_port := flag.String("port", ":8080", "HTTP Listening port")
-	tls_listen_port := flag.String("tls_port", ":8443", "HTTPS Listening port. This listener is only enabled if both tls cert and key are set.")
+	http_listen_host := flag.String("host", "0.0.0.0", "HTTP Listening host")
+	http_listen_port := flag.Int("port", 8080, "HTTP Listening port")
+	https_listen_port := flag.Int("tls_port", 8443, "HTTPS Listening port. This listener is only enabled if both tls cert and key are set.")
 	data_dir := flag.String("data", "./data", "Path to directory containing tiles")
 	static_dir := flag.String("static", "./static/", "Path to static file directory")
-	renderd_socket := flag.String("socket", "", "Unix domain socket path or hostname:port for contacting renderd. Set to '' to disable rendering")
-	renderd_timeout := flag.Int("renderd-timeout", 60, "time in seconds to wait for renderd before returning an error to the client. Set negative to disable")
+	renderd_socket := flag.String("socket", "", "Unix domain socket path or hostname:port for contacting renderd. Rendering disabled by default.")
+	renderd_timeout_duration := flag.Duration("renderd-timeout", (time.Duration(60) * time.Second), "Timeout duration after which renderd returns an error to the client (I.E. '30s' for thirty seconds). Set negative to disable")
 	map_name := flag.String("map", "ajt", "Name of map. This value is also used to determine the metatile subdirectory")
 	tls_cert_path := flag.String("tls_cert_path", "", "Path to TLS certificate")
 	tls_key_path := flag.String("tls_key_path", "", "Path to TLS key")
-	tile_expiration_duration := flag.Duration("tile_expiration", 0, "Duration(example for a week: '168h') after which tiles are considered stale. Disabled by default")
-	var renderd_timeout_duration time.Duration = time.Duration(*renderd_timeout) * time.Second
+	tile_expiration_duration := flag.Duration("tile_expiration", 0, "Duration after which tiles are considered stale (I.E. '168h' for one week). Tile expiration disabled by default")
+	verbose := flag.Bool("verbose", false, "Output debug log messages")
+
 	flag.Parse()
+
 	// Renderd expects at most 64 bytes.
 	// 64 - (5 * 4 bytes - 1 zero byte of null-terminated string) = 43
 	if len(*map_name) > 43 {
-		log.Fatal("Map name may not be longer than 43 characters")
+		logFatalf("Map name may not be longer than 43 characters")
 	}
 	if len(*renderd_socket) > 0 {
 		renderd_socket_type, renderd_tcp_addr := getSocketType(*renderd_socket)
 		if renderd_socket_type == "tcp" {
 			c, err := net.DialTCP("tcp", nil, renderd_tcp_addr)
 			if err != nil {
-				log.Fatalf("There was an error with the renderd %s socket at '%s': %v", renderd_socket_type, *renderd_socket, err)
+				logFatalf("There was an error with the renderd %s socket at '%s': %v", renderd_socket_type, *renderd_socket, err)
 			}
 			c.Close()
 		} else {
 			_, err := os.Stat(*renderd_socket)
 			if err != nil {
-				log.Fatalf("There was an error with the renderd %s socket at '%s': %v", renderd_socket_type, *renderd_socket, err)
+				logFatalf("There was an error with the renderd %s socket at '%s': %v", renderd_socket_type, *renderd_socket, err)
 			}
 		}
-		fmt.Printf("Using renderd %s socket at '%s'\n", renderd_socket_type, *renderd_socket)
+		logInfof("Using renderd %s socket at '%s'\n", renderd_socket_type, *renderd_socket)
 	} else {
-		fmt.Println("Rendering is disabled")
+		logInfof("Rendering is disabled")
 	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
+
+	// HTTP request multiplexer
+	httpServeMux := http.NewServeMux()
+
+	// Tile HTTP request handler
+	httpServeMux.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
+		if *verbose {
+			logDebugf("%s request received: %s", r.Method, r.RequestURI)
+		}
 		if r.Method != "GET" {
-			w.WriteHeader(http.StatusMethodNotAllowed) // TODO return 4xx wrong method
-			w.Write([]byte("Only GET requests allowed"))
+			http.Error(w, "Only GET requests allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		handleRequest(w, r, *data_dir, *map_name, *renderd_socket, renderd_timeout_duration, *tile_expiration_duration)
-	})
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.FileServer(http.Dir(*static_dir)).ServeHTTP(w, r)
+		handleRequest(w, r, *data_dir, *map_name, *renderd_socket, *renderd_timeout_duration, *tile_expiration_duration)
 	})
 
-	server := &http.Server{
-		Handler: mux,
+	// Static HTTP request handler
+	httpServeMux.Handle("/", http.FileServer(http.Dir(*static_dir)))
+
+	// HTTP Server
+	httpServer := http.Server{
+		Handler: httpServeMux,
 	}
+
+	// HTTPS listener
 	if len(*tls_cert_path) > 0 && len(*tls_key_path) > 0 {
 		go func() {
-			fmt.Printf("Listening on port %s\n", *tls_listen_port)
-			tls_listener, err := net.Listen("tcp", *tls_listen_port)
+			httpsAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", *http_listen_host, *https_listen_port))
 			if err != nil {
-				log.Fatal(err)
+				logFatalf("Failed to resolve TCP address: %v", err)
 			}
-			err = server.ServeTLS(tls_listener, *tls_cert_path, *tls_key_path)
+			httpsListener, err := net.ListenTCP("tcp", httpsAddr)
 			if err != nil {
-				log.Fatal(err)
+				logFatalf("Failed to start TCP listener: %v", err)
+			} else {
+				logInfof("Started HTTPS listener on %s\n", httpsAddr)
+			}
+			err = httpServer.ServeTLS(httpsListener, *tls_cert_path, *tls_key_path)
+			if err != nil {
+				logFatalf("Failed to start HTTPS server: %v", err)
 			}
 		}()
 	} else {
-		fmt.Println("TLS is disabled")
+		logInfof("TLS is disabled")
 	}
-	fmt.Printf("Listening on port %s\n", *http_listen_port)
-	http_listener, err := net.Listen("tcp", *http_listen_port)
+
+	// HTTP listener
+	httpAddr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", *http_listen_host, *http_listen_port))
 	if err != nil {
-		log.Fatal(err)
+		logFatalf("Failed to resolve TCP address: %v", err)
 	}
-	err = server.Serve(http_listener)
+	httpListener, err := net.ListenTCP("tcp", httpAddr)
 	if err != nil {
-		log.Fatal(err)
+		logFatalf("Failed to start TCP listener: %v", err)
+	} else {
+		logInfof("Started HTTP listener on %s\n", httpAddr)
+	}
+	err = httpServer.Serve(httpListener)
+	if err != nil {
+		logFatalf("Failed to start HTTP server: %v", err)
 	}
 }

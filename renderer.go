@@ -26,9 +26,8 @@ func getSocketConnection(renderd_socket string) (net.Conn, error) {
 	renderd_socket_type, renderd_tcp_addr := getSocketType(renderd_socket)
 	if renderd_socket_type == "tcp" {
 		return net.DialTCP("tcp", nil, renderd_tcp_addr)
-	} else {
-		return net.Dial("unix", renderd_socket)
 	}
+	return net.Dial("unix", renderd_socket)
 }
 
 func requestRender(x, y, z uint32, map_name, renderd_socket string, renderd_timeout time.Duration, priority int) error {
