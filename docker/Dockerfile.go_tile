@@ -1,0 +1,16 @@
+FROM golang:1.20-alpine as build
+WORKDIR /build
+COPY . .
+RUN CGO_ENABLED=0 go build .
+
+FROM busybox
+COPY --from=build /build/docker/go_tile-entrypoint.sh /docker-entrypoint.sh
+COPY --from=build /build/docker/go_tile-healthcheck.sh /docker-healthcheck.sh
+COPY --from=build /build/go_tile /bin/go_tile
+COPY --from=build /build/static /usr/share/go_tile/static
+
+RUN adduser -D -H -s /bin/nologin go_tile
+
+USER go_tile
+ENTRYPOINT /docker-entrypoint.sh
+HEALTHCHECK CMD /docker-healthcheck.sh

@@ -1,2 +1,3 @@
 .vscode
-osm-tileserver
+data
+go_tile

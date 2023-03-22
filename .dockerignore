@@ -1,7 +1,9 @@
 *
+!docker/go_tile-entrypoint.sh
+!docker/go_tile-healthcheck.sh
 !go.mod
 !go.sum
+!go_tile
 !main.go
-!main_test.go
 !renderer.go
 !static

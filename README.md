@@ -30,7 +30,7 @@ Currently supported features:
 docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8080:8080 ghcr.io/nielsole/go_tile:latest
 ```
 
-Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/>
+Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/tile/{z}/{x}/{y}.png>
 
 ### With Docker Compose
 
@@ -40,7 +40,7 @@ This will take some time to download and import all of the data files. Currently
 COMPOSE_FILE=docker/docker-compose.yml docker compose up --build
 ```
 
-Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/>
+Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/tile/{z}/{x}/{y}.png>
 
 ### Building from source
 
@@ -55,7 +55,7 @@ go build .
 If you prefer to run the binary directly you have the following options:
 
 ```
-Usage of ./osm-tileserver:
+Usage of ./go_tile:
   -data string
         Path to directory containing tiles (default "./data")
   -map string

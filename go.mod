@@ -1,3 +1,3 @@
-module github.com/nielsole/osm-tileserver
+module github.com/nielsole/go_tile
 
 go 1.20
