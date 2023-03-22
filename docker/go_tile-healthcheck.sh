@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
-set -eux
+set -eu
 
 pgrep go_tile

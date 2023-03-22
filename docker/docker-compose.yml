@@ -1,20 +1,23 @@
 ---
+version: "3.8"
+
 services:
   go_tile:
-    build: ..
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.go_tile
     depends_on:
       renderd:
         condition: service_healthy
-    entrypoint: /docker-entrypoint.sh
-    healthcheck:
-      test: ["CMD", "/docker-healthcheck.sh"]
-      start_period: 1m
+    environment:
+      MAP_NAME: default
+      METATILE_DIR: /data/tiles
+      RENDERD_SOCKET: renderd:7654
     ports:
       - 8080:8080
     volumes:
-      - ./go_tile-entrypoint.sh:/docker-entrypoint.sh:ro
-      - ./go_tile-healthcheck.sh:/docker-healthcheck.sh:ro
       - osm-tiles:/data/tiles:ro
+
   renderd:
     entrypoint: /docker-entrypoint.sh
     environment:

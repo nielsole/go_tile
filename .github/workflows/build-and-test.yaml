@@ -22,14 +22,64 @@ env:
 
 jobs:
   test:
-    container: golang:1.20-alpine
-    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
+      - name: Install coreutils (macOS)
+        if: matrix.os == 'macos-latest'
+        run: brew install coreutils
+
       - name: Run tests
-        run: CGO_ENABLED=0 go test
+        run: make test
+
+      - name: Generate certificate
+        env:
+          SUBJ: ${{ (matrix.os == 'windows-latest') && '//C=US\ST=None\L=None\O=None\CN=localhost' || '/C=US/ST=None/L=None/O=None/CN=localhost' }}
+        run: |
+          openssl req \
+              -new \
+              -newkey rsa:4096 \
+              -days 365 \
+              -nodes \
+              -x509 \
+              -subj "${SUBJ}" \
+              -keyout localhost.key \
+              -out localhost.cert
+        
+      - name: Create metatile directory
+        run: |
+          mkdir -p data/ajt/0/0/0/0/0
+          ln -s ../../../../../../../mock_data/0.meta data/ajt/0/0/0/0/0/0.meta
+
+      - name: Build & run server
+        run: |
+          make build
+          ./go_tile -tls_cert_path localhost.cert -tls_key_path localhost.key &
+
+      - name: Fetch & check tile from server
+        env:
+          HTTP_URL: http://localhost:8080/tile/0/0/0.png
+          HTTPS_URL: https://localhost:8443/tile/0/0/0.png
+          SHA256SUM: d038526e9db340fca762fe2f7e04a368583d9150a7d59ed8d27e40e4e3e00719
+        run: |
+          curl --silent ${HTTP_URL} > tile_http.png
+          curl --insecure --silent ${HTTPS_URL} > tile_https.png
+          echo "${SHA256SUM}  tile_http.png" | sha256sum --check --status && \
+            echo "HTTP SHA256SUM Matching!"
+          echo "${SHA256SUM}  tile_https.png" | sha256sum --check --status && \
+            echo "HTTPS SHA256SUM Matching!"
 
   deploy:
     runs-on: ubuntu-latest
@@ -71,7 +121,7 @@ jobs:
           pull: true
           push: true
           context: .
-          file: ./Dockerfile
+          file: docker/Dockerfile.go_tile
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ github.workflow }}

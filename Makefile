@@ -1,10 +1,19 @@
+CGO_ENABLED ?= 0
 
+build:
+	CGO_ENABLED=$(CGO_ENABLED) go build .
 
-build: osm-tileserver
-	go build .
+clean:
+	CGO_ENABLED=$(CGO_ENABLED) go clean .
 
-# docker run -p 8080:8080 -p 8081:80 -v osm-data:/data/database/ --name osm-test -d overv/openstreetmap-tile-server run
-test: build
-	docker cp ./osm-tileserver osm-test:/bin/osm-tileserver
-	docker cp ./static/ osm-test:/static
-	docker exec -it osm-test /bin/osm-tileserver -static /static -data /var/lib/mod_tile/ajt
+run:
+	CGO_ENABLED=$(CGO_ENABLED) go run .
+
+test:
+	CGO_ENABLED=$(CGO_ENABLED) go test .
+
+.PHONY: \
+	build \
+	clean \
+	run \
+	test
