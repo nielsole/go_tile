@@ -110,7 +110,7 @@ func writeTileResponse(writer http.ResponseWriter, req *http.Request, metatile_p
 }
 
 func parsePath(path string) (z, x, y uint32, err error) {
-	matcher := regexp.MustCompile(`/tile/([0-9]+)/([0-9]+)/([0-9]+).png`)
+	matcher := regexp.MustCompile(`^/tile/([0-9]+)/([0-9]+)/([0-9]+).png$`)
 	matches := matcher.FindStringSubmatch(path)
 	if len(matches) != 4 {
 		return 0, 0, 0, errors.New("could not match path")

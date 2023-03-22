@@ -18,6 +18,27 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestParseError(t *testing.T) {
+	invalid_paths := []string{
+		"/tile/4/3/2",
+		"/tile/4/3/2.jpg",
+		"/tile/4/3/2.png/",
+		"/tile/4/3/2.png/3",
+		"/tile/4/3/2.png/3/4",
+		"/tile/-1/3/2.png",
+		"/tile/1.5/3/2.png",
+		"/tile/10000/3.5/2.png",
+		"/tile/100000000000000000000000000000000000000000000000000000000000000000/3/2.5.png",
+		"/tile/abc/3/2.png",
+	}
+	for _, path := range invalid_paths {
+		_, _, _, err := parsePath(path)
+		if err == nil {
+			t.Errorf("expected error for path %s", path)
+		}
+	}
+}
+
 // cpu: Intel(R) Core(TM) i5-6300U CPU @ 2.40GHz
 // BenchmarkPngRead-4                 88027             13260 ns/op
 // BenchmarkWriteTileResponse-4       55233             21662 ns/op
@@ -26,6 +47,15 @@ func TestParse(t *testing.T) {
 func BenchmarkPngRead(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		readPngTile("mock_data/0.meta", 0)
+	}
+}
+
+func BenchmarkParsePath(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		_, _, _, err := parsePath("/tile/4/3/2.png")
+		if err != nil {
+			b.Error(err)
+		}
 	}
 }
 
