@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+var l = Logger{}
+
 /*
  * The findPath function is based upon mod_tile code:
  * Copyright (c) 2007 - 2020 by mod_tile contributors (see AUTHORS file)
@@ -98,8 +100,8 @@ func writeTileResponse(writer http.ResponseWriter, req *http.Request, metatile_p
 		if errors.Is(err, os.ErrNotExist) {
 			writer.WriteHeader(http.StatusNotFound)
 		} else {
-			fmt.Println("Could not open file!", metatile_path)
-			fmt.Println(err)
+			l.Error(fmt.Sprintf("Could not open file! %s", metatile_path))
+			l.Error(err.Error())
 			writer.WriteHeader(http.StatusInternalServerError)
 		}
 		return nil
@@ -146,18 +148,18 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 	if statErr != nil {
 		if errors.Is(statErr, os.ErrNotExist) {
 			if len(renderd_socket) == 0 {
-				fmt.Printf("Tile not found: %s", metatile_path)
+				l.Info(fmt.Sprintf("Tile not found: %s", metatile_path))
 				resp.WriteHeader(http.StatusNotFound)
 				return
 			}
 			renderErr := requestRender(x, y, z, map_name, renderd_socket, renderd_timeout, 5)
 			if renderErr != nil {
-				fmt.Printf("Could not generate tile for coordinates %d, %d, %d (x,y,z). '%s'\n", x, y, z, renderErr)
+				l.Error(fmt.Sprintf("Could not generate tile for coordinates %d, %d, %d (x,y,z). '%s'", x, y, z, renderErr))
 				// Not returning as we are hoping and praying that rendering did nonetheless produce a file
 			}
 			if fileInfo, statErr = os.Stat(metatile_path); statErr != nil {
 				if renderErr == nil {
-					fmt.Printf("warning: metatile could not be found after successful render. Are the paths matching? Tried %s\n", metatile_path)
+					l.Error(fmt.Sprintf("metatile could not be found after successful render. Are the paths matching? Tried %s", metatile_path))
 				}
 				// we haven't checked if this was actually a NotFound error, and even then, this is not a client error, so a 5xx is warranted
 				resp.WriteHeader(http.StatusInternalServerError)
@@ -200,8 +202,27 @@ func main() {
 	tls_cert_path := flag.String("tls_cert_path", "", "Path to TLS certificate")
 	tls_key_path := flag.String("tls_key_path", "", "Path to TLS key")
 	tile_expiration_duration := flag.Duration("tile_expiration", 0, "Duration(example for a week: '168h') after which tiles are considered stale. Disabled by default")
+	log_level_str := flag.String("log-level", "info", "log level (info,error).") // we don't have debug,warn,critical log messages currently
 	var renderd_timeout_duration time.Duration = time.Duration(*renderd_timeout) * time.Second
 	flag.Parse()
+
+	var logLevel LogLevel
+	switch *log_level_str {
+	case "debug":
+		logLevel = Debug
+	case "info":
+		logLevel = Info
+	case "warn":
+		logLevel = Warn
+	case "error":
+		logLevel = Error
+	case "critical":
+		logLevel = Critical
+	default:
+		fmt.Printf("Invalid log level '%s', defaulting to 'warn'\n", *log_level_str)
+		logLevel = Warn
+	}
+	l.LogLevel = logLevel
 	// Renderd expects at most 64 bytes.
 	// 64 - (5 * 4 bytes - 1 zero byte of null-terminated string) = 43
 	if len(*map_name) > 43 {

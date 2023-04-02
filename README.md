@@ -18,12 +18,6 @@ Currently supported features:
 
 ## Usage
 
-### With a renderd backend
-
-* Currently there are no binaries included here automatically (I might have manually included them for some releases), so you will need to build from source
-* a slippymap with leaflet is provided in the ./static/ folder
-* You need to have a working renderd setup
-
 ### With Docker and pregenerated static tiles
 
 ```shell
@@ -32,7 +26,7 @@ docker run --rm -it -v $YOUR_TILE_FOLDER:/data -p 8080:8080 ghcr.io/nielsole/go_
 
 Now you can view your map at <http://localhost:8080/>. Tiles are served at <http://localhost:8080/tile/{z}/{x}/{y}.png>
 
-### With Docker Compose
+### With Docker Compose and renderd
 
 This will take some time to download and import all of the data files. Currently it is configured to populate the map with `Hamburg, Germany`, but the data files can be changed by modifying `DOWNLOAD_PBF` & `DOWNLOAD_POLY` in the [`docker/docker-compose.yml`](/docker/docker-compose.yml) file.
 
