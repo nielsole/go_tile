@@ -58,6 +58,8 @@ If you prefer to run the binary directly you have the following options:
 Usage of ./go_tile:
   -data string
         Path to directory containing tiles (default "./data")
+  -log-level string
+        log level (info,error). (default "info")
   -map string
         Name of map. This value is also used to determine the metatile subdirectory (default "ajt")
   -port string
@@ -65,7 +67,7 @@ Usage of ./go_tile:
   -renderd-timeout int
         time in seconds to wait for renderd before returning an error to the client. Set negative to disable (default 60)
   -socket string
-        Unix domain socket path or hostname:port for contacting renderd. Set to '' to disable rendering (default "")
+        Unix domain socket path or hostname:port for contacting renderd. Set to '' to disable rendering
   -static string
         Path to static file directory (default "./static/")
   -tile_expiration duration
