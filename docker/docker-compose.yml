@@ -13,6 +13,7 @@ services:
       MAP_NAME: default
       METATILE_DIR: /data/tiles
       RENDERD_SOCKET: renderd:7654
+      VERBOSE: true
     ports:
       - 8080:8080
     volumes:
