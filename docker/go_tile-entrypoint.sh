@@ -15,4 +15,8 @@ if [ -n "${RENDERD_SOCKET:-}" ]; then
   OPTIONS="${OPTIONS:-} -socket ${RENDERD_SOCKET}"
 fi
 
+if [ "${VERBOSE:-false}" = "true" ]; then
+  OPTIONS="${OPTIONS:-} -verbose"
+fi
+
 go_tile ${OPTIONS}
