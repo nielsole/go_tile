@@ -235,7 +235,7 @@ func main() {
 		if err != nil {
 			logFatalf("There was an error memory-mapping temp file: %v", err)
 		}
-		defer syscall.Munmap(*mmapData)
+		defer renderer.Munmap(mmapData)
 		defer mmapFile.Close()
 		requestHandler = func(w http.ResponseWriter, r *http.Request) {
 			if *verbose {

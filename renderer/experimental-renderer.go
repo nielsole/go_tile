@@ -134,6 +134,10 @@ func Mmap(path string) (*[]byte, *os.File, error) {
 	return &mmapData, file, nil
 }
 
+func Munmap(data *[]byte) error {
+	return syscall.Munmap(*data)
+}
+
 func HandleRenderRequest(w http.ResponseWriter, r *http.Request, duration time.Duration, data *Data, maxTreeDepth uint32, mmapData *[]byte) {
 	z, x, y, ext, err := utils.ParsePath(r.URL.Path)
 	if ext != "png" {

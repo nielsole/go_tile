@@ -16,3 +16,7 @@ func Mmap(path string) (*[]byte, *os.File, error) {
 func HandleRenderRequest(w http.ResponseWriter, r *http.Request, duration time.Duration, data *Data, maxTreeDepth uint32, mmapData *[]byte) {
 	return _, errors.New("not implemented on Windows")
 }
+
+func Munmap(data *[]byte) error {
+	return errors.New("not implemented on Windows")
+}
