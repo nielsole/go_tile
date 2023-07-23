@@ -4,7 +4,7 @@
 !go.mod
 !go.sum
 !go_tile
-!logger.go
-!main.go
-!renderer.go
+!*.go
 !static
+!renderer/*.go
+!utils/*.go

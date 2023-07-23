@@ -143,10 +143,11 @@ Anyways it should give you an indication of whether this is fast enough for your
 
 This repo also contains an experimental rudimentary renderer. Its goal is to be able to render some sort of map with little operational overhead.
 
-Experimental renderer (this will not be updated on every release, so ymmv):
+Experimental renderer (this will not be updated on every release, so ymmv) compared with osm.org:
+
 ![black lines only](assets/5295.png)
-Comparison of osm.org:
 ![osm.org](assets/5295-compare.png)
+
 Images [OpenStreetMap](https://www.openstreetmap.org/) contributors, [CC-BY-SA](https://creativecommons.org/licenses/by-sa/2.0/)
 
 To use this, pass an oms.pbf file via `-osm_path`.
