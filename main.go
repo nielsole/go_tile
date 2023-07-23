@@ -171,17 +171,22 @@ func main() {
 	http_listen_host := flag.String("host", "0.0.0.0", "HTTP Listening host")
 	http_listen_port := flag.Int("port", 8080, "HTTP Listening port")
 	https_listen_port := flag.Int("tls_port", 8443, "HTTPS Listening port. This listener is only enabled if both tls cert and key are set.")
-	//data_dir := flag.String("data", "./data", "Path to directory containing tiles")
+	data_dir := flag.String("data", "./data", "Path to directory containing tiles")
 	static_dir := flag.String("static", "./static/", "Path to static file directory")
 	renderd_socket := flag.String("socket", "", "Unix domain socket path or hostname:port for contacting renderd. Rendering disabled by default.")
+	osm_path := flag.String("osm_path", "", "Path to osm_path to use for direct rendering. (experimental)")
 	renderd_timeout_duration := flag.Duration("renderd-timeout", (time.Duration(60) * time.Second), "Timeout duration after which renderd returns an error to the client (I.E. '30s' for thirty seconds). Set negative to disable")
 	map_name := flag.String("map", "ajt", "Name of map. This value is also used to determine the metatile subdirectory")
 	tls_cert_path := flag.String("tls_cert_path", "", "Path to TLS certificate")
 	tls_key_path := flag.String("tls_key_path", "", "Path to TLS key")
-	//tile_expiration_duration := flag.Duration("tile_expiration", 0, "Duration after which tiles are considered stale (I.E. '168h' for one week). Tile expiration disabled by default")
+	tile_expiration_duration := flag.Duration("tile_expiration", 0, "Duration after which tiles are considered stale (I.E. '168h' for one week). Tile expiration disabled by default")
 	verbose := flag.Bool("verbose", false, "Output debug log messages")
 
 	flag.Parse()
+
+	if len(*osm_path) > 0 && len(*renderd_socket) > 0 {
+		logFatalf("osm_path and renderd_socket are mutually exclusive")
+	}
 
 	// Renderd expects at most 64 bytes.
 	// 64 - (5 * 4 bytes - 1 zero byte of null-terminated string) = 43
@@ -204,47 +209,72 @@ func main() {
 		}
 		logInfof("Using renderd %s socket at '%s'\n", renderd_socket_type, *renderd_socket)
 	} else {
-		logInfof("Rendering is disabled")
+		logInfof("renderd backend is disabled")
 	}
 
-	// Create a temp file.
-	var err error
-	tempFile, err := ioutil.TempFile("", "example")
-	if err != nil {
-		fmt.Println("Cannot create temp file:", err)
-		os.Exit(1)
-	}
+	var requestHandler func(http.ResponseWriter, *http.Request)
 
-	data, err := renderer.LoadData("/home/nokadmin/projects/go_tile/mock_data/test.osm.pbf", 15, tempFile)
-	if err != nil {
-		logFatalf("There was an error loading data: %v", err)
-	}
-	tempFileName := tempFile.Name()
-	tempFile.Close()
+	if len(*osm_path) > 0 {
+		// Create a temp file.
+		var err error
+		tempFile, err := ioutil.TempFile("", "example")
+		if err != nil {
+			fmt.Println("Cannot create temp file:", err)
+			os.Exit(1)
+		}
 
-	// Memory-map the file
-	mmapData, mmapFile, err := renderer.Mmap(tempFileName)
-	if err != nil {
-		logFatalf("There was an error memory-mapping temp file: %v", err)
-	}
-	defer syscall.Munmap(*mmapData)
-	defer mmapFile.Close()
+		data, err := renderer.LoadData(*osm_path, 15, tempFile)
+		if err != nil {
+			logFatalf("There was an error loading data: %v", err)
+		}
+		tempFileName := tempFile.Name()
+		tempFile.Close()
 
+		// Memory-map the file
+		mmapData, mmapFile, err := renderer.Mmap(tempFileName)
+		if err != nil {
+			logFatalf("There was an error memory-mapping temp file: %v", err)
+		}
+		defer syscall.Munmap(*mmapData)
+		defer mmapFile.Close()
+		requestHandler = func(w http.ResponseWriter, r *http.Request) {
+			if *verbose {
+				logDebugf("%s request received: %s", r.Method, r.RequestURI)
+			}
+			if r.Method != "GET" {
+				http.Error(w, "Only GET requests allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			renderer.HandleRenderRequest(w, r, *renderd_timeout_duration, data, 15, mmapData)
+			//handleRequest(w, r, *data_dir, *map_name, *renderd_socket, *renderd_timeout_duration, *tile_expiration_duration)
+		}
+		defer func() {
+			// Cleanup the temp file.
+			if err := os.Remove(tempFile.Name()); err != nil {
+				fmt.Println("Failed to remove temp file:", err)
+			} else {
+				fmt.Println("Temp file removed.")
+			}
+
+		}()
+	} else {
+
+		requestHandler = func(w http.ResponseWriter, r *http.Request) {
+			if *verbose {
+				logDebugf("%s request received: %s", r.Method, r.RequestURI)
+			}
+			if r.Method != "GET" {
+				http.Error(w, "Only GET requests allowed", http.StatusMethodNotAllowed)
+				return
+			}
+			handleRequest(w, r, *data_dir, *map_name, *renderd_socket, *renderd_timeout_duration, *tile_expiration_duration)
+		}
+	}
 	// HTTP request multiplexer
 	httpServeMux := http.NewServeMux()
 
 	// Tile HTTP request handler
-	httpServeMux.HandleFunc("/tile/", func(w http.ResponseWriter, r *http.Request) {
-		if *verbose {
-			logDebugf("%s request received: %s", r.Method, r.RequestURI)
-		}
-		if r.Method != "GET" {
-			http.Error(w, "Only GET requests allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		renderer.HandleRenderRequest(w, r, *renderd_timeout_duration, data, 15, mmapData)
-		//handleRequest(w, r, *data_dir, *map_name, *renderd_socket, *renderd_timeout_duration, *tile_expiration_duration)
-	})
+	httpServeMux.HandleFunc("/tile/", requestHandler)
 
 	// Static HTTP request handler
 	httpServeMux.Handle("/", http.FileServer(http.Dir(*static_dir)))
@@ -310,13 +340,6 @@ func main() {
 		// Start shutdown.
 		if err := httpServer.Shutdown(ctx); err != nil {
 			fmt.Println("Error during server shutdown:", err)
-		}
-
-		// Cleanup the temp file.
-		if err := os.Remove(tempFile.Name()); err != nil {
-			fmt.Println("Failed to remove temp file:", err)
-		} else {
-			fmt.Println("Temp file removed.")
 		}
 
 		// Additional cleanup code here...
