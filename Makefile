@@ -10,7 +10,7 @@ run:
 	CGO_ENABLED=$(CGO_ENABLED) go run .
 
 test:
-	CGO_ENABLED=$(CGO_ENABLED) go test .
+	CGO_ENABLED=$(CGO_ENABLED) go test ./...
 
 .PHONY: \
 	build \
