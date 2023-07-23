@@ -1,3 +1,8 @@
 .vscode
 data
 go_tile
+test.osm.pbf
+osm-tileserver
+mock_data/
+*.out
+*.test

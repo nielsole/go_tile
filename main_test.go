@@ -6,17 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-)
 
-func TestParse(t *testing.T) {
-	z, x, y, err := parsePath("/tile/4/3/2.png")
-	if err != nil {
-		t.Error(err)
-	}
-	if z != 4 || x != 3 || y != 2 {
-		t.Fail()
-	}
-}
+	"github.com/nielsole/go_tile/utils"
+)
 
 func TestParseError(t *testing.T) {
 	invalid_paths := []string{
@@ -32,7 +24,7 @@ func TestParseError(t *testing.T) {
 		"/tile/abc/3/2.png",
 	}
 	for _, path := range invalid_paths {
-		_, _, _, err := parsePath(path)
+		_, _, _, err := utils.ParsePath(path)
 		if err == nil {
 			t.Errorf("expected error for path %s", path)
 		}
@@ -52,7 +44,7 @@ func BenchmarkPngRead(b *testing.B) {
 
 func BenchmarkParsePath(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		_, _, _, err := parsePath("/tile/4/3/2.png")
+		_, _, _, err := utils.ParsePath("/tile/4/3/2.png")
 		if err != nil {
 			b.Error(err)
 		}
