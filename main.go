@@ -68,7 +68,7 @@ func readInt(file *os.File) (uint32, error) {
 	return binary.LittleEndian.Uint32(b), nil
 }
 
-func readPngTile(metatile_path string, metatile_offset uint32) (*os.File, *io.SectionReader, error) {
+func readTile(metatile_path string, metatile_offset uint32) (*os.File, *io.SectionReader, error) {
 	file, err := os.Open(metatile_path)
 	if err != nil {
 		return nil, nil, err
@@ -93,8 +93,8 @@ func readPngTile(metatile_path string, metatile_offset uint32) (*os.File, *io.Se
 	return file, io.NewSectionReader(file, int64(tile_offset), int64(tile_length)), nil
 }
 
-func writeTileResponse(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time) error {
-	file, pngReader, err := readPngTile(metatile_path, metatile_offset)
+func writeTileResponse(writer http.ResponseWriter, req *http.Request, metatile_path string, metatile_offset uint32, modTime time.Time, ext string) error {
+	file, tileReader, err := readTile(metatile_path, metatile_offset)
 	if file != nil {
 		defer file.Close()
 	}
@@ -108,18 +108,18 @@ func writeTileResponse(writer http.ResponseWriter, req *http.Request, metatile_p
 		return nil
 	}
 	writer.Header().Add("Cache-Control", "no-cache")
-	http.ServeContent(writer, req, "file.png", modTime, pngReader)
+	http.ServeContent(writer, req, "file."+ext, modTime, tileReader)
 	return nil
 }
 
 func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_name, renderd_socket string, renderd_timeout time.Duration, tile_expiration time.Duration) {
-	z, x, y, err := utils.ParsePath(req.URL.Path)
+	z, x, y, ext, err := utils.ParsePath(req.URL.Path)
 	if err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 		resp.Write([]byte(err.Error()))
 		return
 	}
-	resp.Header().Add("Content-Type", "image/png")
+	resp.Header().Add("Content-Type", "image/"+ext)
 	metatile_path, metatile_offset := findPath(data_dir, map_name, z, x, y)
 	fileInfo, statErr := os.Stat(metatile_path)
 	if statErr != nil {
@@ -153,8 +153,8 @@ func handleRequest(resp http.ResponseWriter, req *http.Request, data_dir, map_na
 		}
 	}
 	modTime := fileInfo.ModTime()
-	errPng := writeTileResponse(resp, req, metatile_path, metatile_offset, modTime)
-	if errPng != nil {
+	errTile := writeTileResponse(resp, req, metatile_path, metatile_offset, modTime, ext)
+	if errTile != nil {
 		resp.WriteHeader(http.StatusInternalServerError)
 	}
 }

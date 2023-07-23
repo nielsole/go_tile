@@ -102,7 +102,8 @@ func BenchmarkServeEmptyTile(b *testing.B) {
 //
 // c03af9bccb2499f3f0291c8e8aca22f141f06600
 //
-//	2456439762 ns/op
+//		2456439762 ns/op
+//	 2536369085 ns/op
 func BenchmarkServeFullTile(b *testing.B) {
 	b.StopTimer()
 	pathTile := "/tile/11/1081/661.png"
@@ -145,7 +146,8 @@ func BenchmarkServeFullTile(b *testing.B) {
 //
 // c03af9bccb2499f3f0291c8e8aca22f141f06600
 //
-//	4617123956 ns/op
+//		4617123956 ns/op
+//	  101012328 ns/op
 func BenchmarkServeFullTileZ3(b *testing.B) {
 	b.StopTimer()
 	pathTile := "/tile/3/4/2.png"

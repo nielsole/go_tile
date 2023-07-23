@@ -132,7 +132,10 @@ func Mmap(path string) (*[]byte, *os.File, error) {
 }
 
 func HandleRenderRequest(w http.ResponseWriter, r *http.Request, duration time.Duration, data *Data, maxTreeDepth uint32, mmapData *[]byte) {
-	z, x, y, err := utils.ParsePath(r.URL.Path)
+	z, x, y, ext, err := utils.ParsePath(r.URL.Path)
+	if ext != "png" {
+		http.Error(w, "Only png is supported", http.StatusBadRequest)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
