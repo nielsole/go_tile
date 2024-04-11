@@ -55,15 +55,13 @@ go build .
 If you prefer to run the binary directly you have the following options:
 
 ```
-Usage of ./go_tile:
+Usage of go_tile:
   -data string
         Path to directory containing tiles (default "./data")
   -host string
         HTTP Listening host (default "0.0.0.0")
   -map string
         Name of map. This value is also used to determine the metatile subdirectory (default "ajt")
-  -osm_path string
-        Path to osm_path to use for direct rendering. (experimental)
   -port int
         HTTP Listening port (default 8080)
   -renderd-timeout duration
@@ -138,24 +136,3 @@ Percentage of the requests served within a certain time (ms)
 
 This benchmark doesn't access the disk, as the tile has obviously been cached in memory.
 Anyways it should give you an indication of whether this is fast enough for your use-case.
-
-# Experimental renderer
-
-This repo also contains an experimental rudimentary renderer. Its goal is to be able to render some sort of map with little operational overhead.
-
-Experimental renderer (this will not be updated on every release, so ymmv) compared with osm.org:
-
-![black lines only](assets/5295.png)
-![osm.org](assets/5295-compare.png)
-
-Images [OpenStreetMap](https://www.openstreetmap.org/) contributors, [CC-BY-SA](https://creativecommons.org/licenses/by-sa/2.0/)
-
-To use this, pass an oms.pbf file via `-osm_path`.
-
-Currently osm.pbf files have to be prepared like so
-```
-osmium add-locations-to-ways ~/Downloads/hamburg-latest.osm.pbf -o prepared.osm.pbf -f
-```
-
-This creates a temporary file on startup, which might take some time.
-Testing so far was only done for individual cities.
